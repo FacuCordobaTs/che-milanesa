@@ -10,6 +10,7 @@ import {
 import { ProductDetailDrawer } from '@/components/ProductDetailDrawer'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { MisPedidosDrawer } from '@/components/MisPedidosDrawer'
+import { guardarTemaRestaurante, leerTemaRestaurante, RestauranteTheme } from '@/components/RestauranteTheme'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { CheckoutDeliveryGrupal } from '@/components/CheckoutDeliveryGrupal'
@@ -169,12 +170,7 @@ const MenuDelivery = () => {
                         setEstadoAbierto(checkIsOpen(data.data.horarios))
                         // setEstadoAbierto({ abierto: true, proximaApertura: null })
                     }
-                    if (data.data.restaurante.colorPrimario && data.data.restaurante.colorSecundario) {
-                        sessionStorage.setItem(`theme_${username}`, JSON.stringify({
-                            primario: data.data.restaurante.colorPrimario,
-                            secundario: data.data.restaurante.colorSecundario
-                        }))
-                    }
+                    guardarTemaRestaurante(`theme_${username}`, data.data.restaurante)
                     if (data.data.restaurante.sistemaPuntos && telefonoCliente) {
                         fetchPuntos(telefonoCliente, data.data.restaurante.id)
                     }
@@ -515,50 +511,8 @@ const MenuDelivery = () => {
         }
     }
 
-    const cachedThemeStr = sessionStorage.getItem(`theme_${username}`)
-    const cachedTheme = cachedThemeStr ? JSON.parse(cachedThemeStr) : null
-
-    const primario = restaurante?.colorPrimario || cachedTheme?.primario
-    const secundario = restaurante?.colorSecundario || cachedTheme?.secundario
-
-    const themeStyles = (primario && secundario) ? (
-        <style dangerouslySetInnerHTML={{
-            __html: `
-            :root {
-                --background: ${secundario};
-                --foreground: ${primario};
-                --card: ${secundario};
-                --card-foreground: ${primario};
-                --popover: ${secundario};
-                --popover-foreground: ${primario};
-                --primary: ${primario};
-                --primary-foreground: ${secundario};
-                --secondary: ${primario}18;
-                --secondary-foreground: ${primario};
-                --muted: ${primario}15;
-                --muted-foreground: ${primario}99;
-                --border: ${primario}30;
-                --input: ${primario}30;
-            }
-
-            .dark {
-                --background: ${primario};
-                --foreground: ${secundario};
-                --card: ${primario};
-                --card-foreground: ${secundario};
-                --popover: ${primario};
-                --popover-foreground: ${secundario};
-                --primary: ${secundario};
-                --primary-foreground: ${primario};
-                --secondary: ${secundario}18;
-                --secondary-foreground: ${secundario};
-                --muted: ${secundario}15;
-                --muted-foreground: ${secundario}b3;
-                --border: ${secundario}30;
-                --input: ${secundario}30;
-            }
-        `}} />
-    ) : null;
+    const cachedTheme = leerTemaRestaurante(`theme_${username}`)
+    const themeStyles = <RestauranteTheme restaurante={restaurante} cachedTheme={cachedTheme} />
 
     if (loading) {
         return (

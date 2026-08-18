@@ -20,6 +20,7 @@ interface Restaurante {
   direccion?: string | null
   colorPrimario?: string | null
   colorSecundario?: string | null
+  usarColorUnico?: boolean | null
   username?: string | null
 }
 

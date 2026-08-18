@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router'
 import { CheckCircle2, Copy, Loader2, Store, Truck, MapPin, Clock, Users } from 'lucide-react'
 import { toast } from 'sonner'
 import { ThemeToggle } from '@/components/ThemeToggle'
+import { guardarTemaRestaurante, leerTemaRestaurante, RestauranteTheme } from '@/components/RestauranteTheme'
 import { initMercadoPago, CardPayment } from '@mercadopago/sdk-react'
 
 const MP_CHECKOUT_LAUNCHED_KEY = 'mpCheckoutLaunchedSalaPedidoId'
@@ -48,6 +49,7 @@ const SuccessGrupal = () => {
         if (data.success && data.data?.restaurante) {
           const rest = data.data.restaurante
           setRestauranteData(rest)
+          guardarTemaRestaurante(`theme_sala_${orderInfo.token}`, rest)
           const m = getEffectiveMetodo(JSON.parse(sessionStorage.getItem('salaOrderInfo') || '{}'))
           if (m === 'cash') setStatus('confirmed')
         }
@@ -281,47 +283,8 @@ const SuccessGrupal = () => {
   const isMpCheckoutMetodo = effectiveMetodo === 'mercadopago_checkout'
   const isDispatched = pedidoEstado === 'dispatched' || pedidoEstado === 'archived'
 
-  // Colores hardcodeados para single tenant
-  const primario = '#0a331d'
-  const secundario = '#eae7e0'
-
-  const themeStyles = (
-    <style dangerouslySetInnerHTML={{
-      __html: `
-      :root {
-        --background: ${secundario};
-        --foreground: ${primario};
-        --card: ${secundario};
-        --card-foreground: ${primario};
-        --popover: ${secundario};
-        --popover-foreground: ${primario};
-        --primary: ${primario};
-        --primary-foreground: ${secundario};
-        --secondary: ${primario}18;
-        --secondary-foreground: ${primario};
-        --muted: ${primario}15;
-        --muted-foreground: ${primario}99;
-        --border: ${primario}30;
-        --input: ${primario}30;
-      }
-      .dark {
-        --background: ${primario};
-        --foreground: ${secundario};
-        --card: ${primario};
-        --card-foreground: ${secundario};
-        --popover: ${primario};
-        --popover-foreground: ${secundario};
-        --primary: ${secundario};
-        --primary-foreground: ${primario};
-        --secondary: ${secundario}18;
-        --secondary-foreground: ${secundario};
-        --muted: ${secundario}15;
-        --muted-foreground: ${secundario}b3;
-        --border: ${secundario}30;
-        --input: ${secundario}30;
-      }
-    `}} />
-  )
+  const cachedTheme = leerTemaRestaurante(orderInfo?.token ? `theme_sala_${orderInfo.token}` : null)
+  const themeStyles = <RestauranteTheme restaurante={restauranteData} cachedTheme={cachedTheme} />
 
   const OrderItems = () => (
     <div className="relative">

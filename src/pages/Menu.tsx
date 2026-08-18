@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import { ProductDetailDrawer } from '@/components/ProductDetailDrawer'
 import { ThemeToggle } from '@/components/ThemeToggle'
+import { guardarTemaRestaurante, leerTemaRestaurante, RestauranteTheme } from '@/components/RestauranteTheme'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { CheckoutDeliveryGrupal } from '@/components/CheckoutDeliveryGrupal'
 import { MisPedidosDrawer } from '@/components/MisPedidosDrawer'
@@ -394,47 +395,45 @@ const Menu = () => {
   const puedeProgramar = esSala && permitirProgramados
   const bloqueadoPorCierre = localCerrado && !puedeProgramar
 
-  // Colores hardcodeados para single tenant
-  const primario = '#0a331d'
-  const secundario = '#eae7e0'
+  // Guardar tema cuando el restaurante tiene colores propios
+  const token = urlQrToken || qrToken
+  useEffect(() => {
+    if (!restaurante?.colorPrimario || !token) return
+    const key = esSala ? `theme_sala_${token}` : `theme_mesa_${token}`
+    guardarTemaRestaurante(key, restaurante)
+    // También guardar con username para que MenuDelivery y Menu compartan tema
+    if (restaurante.username) {
+      guardarTemaRestaurante(`theme_${restaurante.username}`, restaurante)
+    }
+  }, [restaurante?.colorPrimario, restaurante?.colorSecundario, restaurante?.usarColorUnico, restaurante?.username, token, esSala])
 
-  const themeStyles = (
-    <style dangerouslySetInnerHTML={{
-      __html: `
-      :root {
-        --background: ${secundario};
-        --foreground: ${primario};
-        --card: ${secundario};
-        --card-foreground: ${primario};
-        --popover: ${secundario};
-        --popover-foreground: ${primario};
-        --primary: ${primario};
-        --primary-foreground: ${secundario};
-        --secondary: ${primario}18;
-        --secondary-foreground: ${primario};
-        --muted: ${primario}15;
-        --muted-foreground: ${primario}99;
-        --border: ${primario}30;
-        --input: ${primario}30;
-      }
-      .dark {
-        --background: ${primario};
-        --foreground: ${secundario};
-        --card: ${primario};
-        --card-foreground: ${secundario};
-        --popover: ${primario};
-        --popover-foreground: ${secundario};
-        --primary: ${secundario};
-        --primary-foreground: ${primario};
-        --secondary: ${secundario}18;
-        --secondary-foreground: ${secundario};
-        --muted: ${secundario}15;
-        --muted-foreground: ${secundario}b3;
-        --border: ${secundario}30;
-        --input: ${secundario}30;
-      }
-    `}} />
-  )
+  // Si tenemos token pero no tema (ej: llegó por link compartido sin pasar por Nombre), fetchear para obtener colores
+  useEffect(() => {
+    if (!token || !isHydrated) return
+    const hasTheme = (restaurante?.colorPrimario && (restaurante?.usarColorUnico || restaurante?.colorSecundario)) ||
+      sessionStorage.getItem(esSala ? `theme_sala_${token}` : `theme_mesa_${token}`) ||
+      (restaurante?.username && sessionStorage.getItem(`theme_${restaurante.username}`))
+    if (hasTheme) return
+
+    const fetchTheme = async () => {
+      try {
+        const response = await mesaApi.join(token) as { success?: boolean; data?: any }
+        if (response.success && response.data?.restaurante) {
+          const rest = response.data.restaurante
+          setRestaurante(rest)
+          const key = esSala ? `theme_sala_${token}` : `theme_mesa_${token}`
+          guardarTemaRestaurante(key, rest)
+          if (rest.username) guardarTemaRestaurante(`theme_${rest.username}`, rest)
+        }
+      } catch { /* ignore */ }
+    }
+    fetchTheme()
+  }, [token, isHydrated, esSala])
+
+  const themeKeySalaMesa = token ? (esSala ? `theme_sala_${token}` : `theme_mesa_${token}`) : null
+  const themeKeyUsername = restaurante?.username ? `theme_${restaurante.username}` : null
+  const cachedTheme = leerTemaRestaurante(themeKeySalaMesa) || leerTemaRestaurante(themeKeyUsername)
+  const themeStyles = <RestauranteTheme restaurante={restaurante} cachedTheme={cachedTheme} />
 
   const renderItem = (item: any) => {
     const esMio = item.clienteNombre === clienteNombre

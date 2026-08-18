@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useMesaStore } from '@/store/mesaStore'
 import { mesaApi, ApiError } from '@/lib/api'
+import { guardarTemaRestaurante, leerTemaRestaurante, RestauranteTheme } from '@/components/RestauranteTheme'
 import { toast } from 'sonner'
 import { Loader2, Utensils, ChevronRight, UtensilsCrossed, Truck, CreditCard, Package, ShoppingCart } from 'lucide-react'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -149,6 +150,9 @@ const Nombre = () => {
               esCarrito: boolean | null
               splitPayment: boolean | null
               soloCartaDigital: boolean
+              colorPrimario?: string | null
+              colorSecundario?: string | null
+              usarColorUnico?: boolean | null
             } | null
           }
         }
@@ -162,6 +166,9 @@ const Nombre = () => {
           setPedido(response.data.pedido)
           setRestaurante(response.data.restaurante || null)
           setDataLoaded(true) // Marcar que los datos del servidor ya se cargaron
+
+          const rest = response.data.restaurante
+          if (rest) guardarTemaRestaurante(`theme_mesa_${urlQrToken}`, rest)
 
           // Si es carrito y ya tiene nombrePedido, mostrar modal de bienvenida
           if (response.data.restaurante?.esCarrito && response.data.pedido.nombrePedido) {
@@ -216,9 +223,9 @@ const Nombre = () => {
     }
   }
 
-  // Colores hardcodeados para single tenant
-  const primario = '#0a331d'
-  const secundario = '#eae7e0'
+  // Colores del restaurante (fallback para el loading mientras no cargó)
+  const primario = restaurante?.colorPrimario || '#0a331d'
+  const secundario = restaurante?.colorSecundario || '#eae7e0'
 
   // Mostrar cargando mientras se hidrata el store o se carga la mesa
   if (isLoading || !isHydrated || !shouldAskName) {
@@ -237,43 +244,10 @@ const Nombre = () => {
     )
   }
 
-  const themeStyles = (
-    <style dangerouslySetInnerHTML={{
-      __html: `
-        :root {
-          --background: ${secundario};
-          --foreground: ${primario};
-          --card: ${secundario};
-          --card-foreground: ${primario};
-          --popover: ${secundario};
-          --popover-foreground: ${primario};
-          --primary: ${primario};
-          --primary-foreground: ${secundario};
-          --secondary: ${primario}18;
-          --secondary-foreground: ${primario};
-          --muted: ${primario}15;
-          --muted-foreground: ${primario}99;
-          --border: ${primario}30;
-          --input: ${primario}30;
-        }
-        .dark {
-          --background: ${primario};
-          --foreground: ${secundario};
-          --card: ${primario};
-          --card-foreground: ${secundario};
-          --popover: ${primario};
-          --popover-foreground: ${secundario};
-          --primary: ${secundario};
-          --primary-foreground: ${primario};
-          --secondary: ${secundario}18;
-          --secondary-foreground: ${secundario};
-          --muted: ${secundario}15;
-          --muted-foreground: ${secundario}b3;
-          --border: ${secundario}30;
-          --input: ${secundario}30;
-        }
-      `}} />
-  )
+  const isSala = location.pathname.includes('/sala/')
+  const themeKey = urlQrToken ? (isSala ? `theme_sala_${urlQrToken}` : `theme_mesa_${urlQrToken}`) : null
+  const cachedTheme = leerTemaRestaurante(themeKey)
+  const themeStyles = <RestauranteTheme restaurante={restaurante} cachedTheme={cachedTheme} />
 
   return (
     <div className="min-h-screen bg-background font-sans flex flex-col">
