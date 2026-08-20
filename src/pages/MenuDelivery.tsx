@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { useNavigate } from 'react-router'
+import { useNavigate, useSearchParams } from 'react-router'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent } from '@/components/ui/sheet'
 import { toast } from 'sonner'
@@ -10,10 +10,11 @@ import {
 import { ProductDetailDrawer } from '@/components/ProductDetailDrawer'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { MisPedidosDrawer } from '@/components/MisPedidosDrawer'
-import { guardarTemaRestaurante, leerTemaRestaurante, RestauranteTheme } from '@/components/RestauranteTheme'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { CheckoutDeliveryGrupal } from '@/components/CheckoutDeliveryGrupal'
+import { redirectPedidoAlWhatsapp } from '@/lib/checkoutWhatsapp'
+import { guardarTemaRestaurante, leerTemaRestaurante, RestauranteTheme } from '@/components/RestauranteTheme'
 
 type HorarioTurno = { diaSemana: number; horaApertura: string; horaCierre: string }
 
@@ -32,8 +33,9 @@ function formatTimeLeft(fechaFin: string | Date | null): string | null {
 
 function checkIsOpen(horarios: HorarioTurno[]): { abierto: boolean; proximaApertura: string | null } {
     if (!horarios || horarios.length === 0) return { abierto: true, proximaApertura: null }
+
     const now = new Date()
-    const diaHoy = now.getDay()
+    const diaHoy = now.getDay() // 0=Dom
     const diaAyer = (diaHoy + 6) % 7
     const hhmm = now.getHours() * 60 + now.getMinutes()
 
@@ -46,15 +48,19 @@ function checkIsOpen(horarios: HorarioTurno[]): { abierto: boolean; proximaApert
                 return { abierto: true, proximaApertura: null }
             }
         } else {
+            // Cruza medianoche: ej 20:00-02:00
+            // Parte nocturna (mismo día del turno, después de apertura)
             if (h.diaSemana === diaHoy && hhmm >= apertura) {
                 return { abierto: true, proximaApertura: null }
             }
+            // Parte madrugada (día siguiente al turno, antes de cierre)
             if (h.diaSemana === diaAyer && hhmm < cierre) {
                 return { abierto: true, proximaApertura: null }
             }
         }
     }
 
+    // Encontrar la próxima apertura
     const DIAS_NOMBRE = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
     let mejor: { minutos: number; texto: string } | null = null
 
@@ -76,9 +82,14 @@ function checkIsOpen(horarios: HorarioTurno[]): { abierto: boolean; proximaApert
     return { abierto: false, proximaApertura: mejor?.texto || null }
 }
 
+
 const MenuDelivery = () => {
     const navigate = useNavigate()
+    // Che Milanesa es un deploy single-tenant: ésta es la única identidad
+    // hardcodeada; sucursales, direcciones y teléfonos siempre vienen del backend.
     const username = 'chemilanesa'
+    const [searchParams, setSearchParams] = useSearchParams()
+    const repAplicadoRef = useRef(false)
 
     const [carritoAbierto, setCarritoAbierto] = useState(false)
     const [selectedProduct, setSelectedProduct] = useState<any>(null)
@@ -95,15 +106,6 @@ const MenuDelivery = () => {
     const [modalSalaOpen, setModalSalaOpen] = useState(false)
     const [nombreSala, setNombreSala] = useState('')
     const [creandoSala, setCreandoSala] = useState(false)
-
-    const [mostrarCheckoutEnCarrito, setMostrarCheckoutEnCarrito] = useState(false)
-    const [expandido, setExpandido] = useState(false)
-    const [checkoutDeliveryData, setCheckoutDeliveryData] = useState<any>(null)
-    const [editSemaphoreLocal, setEditSemaphoreLocal] = useState<{ clienteId: string; clienteNombre: string } | null>(null)
-    const [tituloCheckout, setTituloCheckout] = useState('¿Cómo lo querés?')
-    const [submittingOrder, setSubmittingOrder] = useState(false)
-    const checkoutDataRef = useRef<any>(null)
-    const isSubmittingRef = useRef(false)
 
     const [cartItems, setCartItems] = useState<any[]>(() => {
         const saved = localStorage.getItem(`deliveryCart_${username}`)
@@ -129,6 +131,16 @@ const MenuDelivery = () => {
     const [modalPuntosOpen, setModalPuntosOpen] = useState(false)
     const [misPedidosOpen, setMisPedidosOpen] = useState(false)
 
+    const [mostrarCheckoutEnCarrito, setMostrarCheckoutEnCarrito] = useState(false)
+    const [expandido, setExpandido] = useState(false)
+    const [checkoutDeliveryData, setCheckoutDeliveryData] = useState<any>(null)
+    const [editSemaphoreLocal, setEditSemaphoreLocal] = useState<{ clienteId: string; clienteNombre: string } | null>(null)
+    const [tituloCheckout, setTituloCheckout] = useState('¿Cómo lo querés?')
+    const [submittingOrder, setSubmittingOrder] = useState(false)
+    const checkoutDataRef = useRef<any>(null)
+    const isSubmittingRef = useRef(false)
+
+    // Function to fetch points
     const fetchPuntos = useCallback(async (telefono: string, restauranteId: number) => {
         if (!telefono || !restauranteId) return
         setLoadingPuntos(true)
@@ -140,7 +152,7 @@ const MenuDelivery = () => {
                 if (data.success) {
                     setPuntosCliente(data.data.puntos)
                 } else {
-                    setPuntosCliente(0)
+                    setPuntosCliente(0) // No client yet
                 }
             } else {
                 setPuntosCliente(0)
@@ -168,7 +180,6 @@ const MenuDelivery = () => {
                     if (data.data.horarios) {
                         setHorarios(data.data.horarios)
                         setEstadoAbierto(checkIsOpen(data.data.horarios))
-                        // setEstadoAbierto({ abierto: true, proximaApertura: null })
                     }
                     guardarTemaRestaurante(`theme_${username}`, data.data.restaurante)
                     if (data.data.restaurante.sistemaPuntos && telefonoCliente) {
@@ -196,117 +207,65 @@ const MenuDelivery = () => {
         return () => clearInterval(interval)
     }, [horarios])
 
-    const submitOrder = useCallback(async (data: any) => {
-        if (!data || !restaurante) return
-
-        const estadoActual = checkIsOpen(horarios)
-        if (!estadoActual.abierto && !restaurante?.permitirPedidosProgramados) {
-            toast.error('El restaurante está cerrado', {
-                description: estadoActual.proximaApertura
-                    ? `Abre ${estadoActual.proximaApertura}`
-                    : 'El restaurante no está disponible en este momento.',
-                duration: 5000
-            })
-            isSubmittingRef.current = false
-            return
-        }
-
-        setSubmittingOrder(true)
-        try {
-            const url = import.meta.env.VITE_API_URL || 'http://localhost:3000/api'
-            const tipoPedido = data.tipoPedido as 'delivery' | 'takeaway'
-            const endpoint = tipoPedido === 'delivery' ? '/public/delivery/create' : '/public/takeaway/create'
-            const payload: any = {
-                restauranteId: restaurante.id,
-                nombreCliente: data.nombre,
-                telefono: data.telefono,
-                notas: data.notas || '',
-                items: cartItems.map((i: any) => ({
-                    productoId: i.productoId,
-                    varianteId: i.varianteId,
-                    cantidad: i.cantidad,
-                    ingredientesExcluidos: i.ingredientesExcluidos,
-                    agregados: i.agregados || [],
-                    esCanjePuntos: i.esCanjePuntos || false
-                })),
-                metodoPago: data.metodoPago,
-            }
-            if (data.codigoDescuentoId) payload.codigoDescuentoId = data.codigoDescuentoId
-            if (tipoPedido === 'delivery') {
-                payload.direccion = data.direccion
-                payload.lat = data.lat
-                payload.lng = data.lng
-                if (data.sucursalId) payload.sucursalId = data.sucursalId
-            }
-            if (tipoPedido === 'takeaway' && data.sucursalId) payload.sucursalId = data.sucursalId
-            if (data.horarioProgramado) payload.horarioProgramado = data.horarioProgramado
-            const res = await fetch(`${url}${endpoint}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            })
-            const result = await res.json()
-            if (result.success) {
-                localStorage.setItem('cliente_nombre', data.nombre)
-                localStorage.setItem('cliente_telefono', data.telefono)
-                if (tipoPedido === 'delivery') {
-                    localStorage.setItem('cliente_direccion', data.direccion || '')
-                    if (data.lat != null) localStorage.setItem('cliente_lat', String(data.lat))
-                    if (data.lng != null) localStorage.setItem('cliente_lng', String(data.lng))
-                }
-                localStorage.removeItem(`deliveryCart_${username}`)
-                sessionStorage.setItem('deliveryOrderInfo', JSON.stringify({
-                    pedidoId: result.data.id,
-                    tipoPedido,
-                    total: result.data.total ? parseFloat(result.data.total) : parseFloat(data.total || '0'),
-                    items: cartItems,
-                    metodoPago: data.metodoPago,
-                    nombreCliente: data.nombre,
-                    aliasDinamico: result.data.aliasDinamico,
-                    cvuDinamico: result.data.cvuDinamico,
-                    deliveryFee: result.data.deliveryFee,
-                    zonaNombre: result.data.zonaNombre,
-                    direccion: tipoPedido === 'delivery' ? data.direccion : null,
-                    montoDescuento: data.montoDescuento > 0 ? data.montoDescuento : undefined,
-                    horarioProgramado: data.horarioProgramado || undefined,
-                    notas: data.notas || undefined,
-                }))
-                navigate(`/success`)
-            } else {
-                if (result.code === 'FUERA_DE_ZONA') {
-                    toast.error('Fuera de zona', { description: 'Tu dirección está fuera del área de delivery. Probá con otra dirección o elegí Take Away.', duration: 6000 })
-                } else {
-                    toast.error(result.message || 'Error al crear el pedido')
-                }
-            }
-        } catch {
-            toast.error('Ocurrió un error al enviar el pedido')
-        } finally {
-            setSubmittingOrder(false)
-            isSubmittingRef.current = false
-        }
-    }, [restaurante, username, cartItems, navigate, horarios])
-
-    const handleCheckoutMessage = useCallback((msg: any) => {
-        if (msg.type === 'INICIAR_EDICION_CHECKOUT') {
-            setEditSemaphoreLocal({ clienteId: 'solo', clienteNombre: msg.payload.clienteNombre })
-        } else if (msg.type === 'CANCELAR_EDICION_CHECKOUT') {
-            setEditSemaphoreLocal(null)
-        } else if (msg.type === 'MODIFICAR_CHECKOUT') {
-            checkoutDataRef.current = msg.payload.updates
-            setCheckoutDeliveryData(msg.payload.updates)
-        } else if (msg.type === 'ACEPTAR_EDICION_CHECKOUT') {
-            if (isSubmittingRef.current) return
-            isSubmittingRef.current = true
-            submitOrder(checkoutDataRef.current)
-        }
-    }, [submitOrder])
-
     const abrirCarrito = useCallback(() => {
         window.history.pushState({ drawer: 'carrito' }, '')
         setCarritoAbierto(true)
         if (!mostrarCheckoutEnCarrito) setExpandido(true)
     }, [mostrarCheckoutEnCarrito])
+
+    // Deep link con carrito precargado (tarea 4.3 · Motor de Recompra). Los mensajes del motor
+    // (p. ej. recupero de dormidos) abren la tienda con `?rep=12x2-15x1` = el pedido de siempre del
+    // cliente. Lo resolvemos contra los productos ya cargados, armamos el carrito solo y lo abrimos:
+    // del antojo al pago sin volver a elegir nada. Se aplica una sola vez y limpia el query param.
+    useEffect(() => {
+        if (repAplicadoRef.current) return
+        if (productos.length === 0) return
+        const rep = searchParams.get('rep')
+        if (!rep) return
+        repAplicadoRef.current = true
+
+        const pares = rep.split('-').map(p => {
+            const [idStr, qtyStr] = p.split('x')
+            return { id: Number(idStr), qty: Math.max(1, Math.min(99, Number(qtyStr) || 1)) }
+        }).filter(p => Number.isFinite(p.id) && p.id > 0)
+
+        const nuevos: any[] = []
+        for (const par of pares) {
+            const producto = productos.find(p => p.id === par.id)
+            if (!producto) continue
+            if (producto.disponible === false) continue
+            if (producto.puntosNecesarios > 0) continue // el canje por puntos no se precarga
+            const basePrecio = parseFloat(producto.precio)
+            let precioFinal = basePrecio
+            if (producto.descuento && producto.descuento > 0) precioFinal = basePrecio * (1 - producto.descuento / 100)
+            nuevos.push({
+                id: Math.random().toString(36).substr(2, 9),
+                productoId: producto.id,
+                nombre: producto.nombre,
+                precio: precioFinal.toFixed(2),
+                precioOriginal: producto.precio,
+                descuento: producto.descuento || 0,
+                imagenUrl: producto.imagenUrl,
+                cantidad: par.qty,
+                ingredientesExcluidos: [],
+                ingredientesExcluidosNombres: [],
+                agregados: [],
+                esCanjePuntos: false,
+                puntosNecesarios: 0,
+                puntosGanados: producto.puntosGanados
+            })
+        }
+
+        // Limpiamos el query param para que no se reaplique al navegar / recargar.
+        searchParams.delete('rep')
+        setSearchParams(searchParams, { replace: true })
+
+        if (nuevos.length > 0) {
+            setCartItems(nuevos)
+            toast.success('Te dejamos listo tu pedido de siempre 🛒')
+            setTimeout(() => abrirCarrito(), 500)
+        }
+    }, [productos])
 
     const cerrarCarrito = useCallback(() => {
         setCarritoAbierto(false)
@@ -407,7 +366,7 @@ const MenuDelivery = () => {
                 ? []
                 : productosFiltrados
 
-    const agregarAlPedido = (producto: any, cantidad: number = 1, ingredientesExcluidos?: number[], agregados?: any[]) => {
+    const agregarAlPedido = (producto: any, cantidad: number = 1, ingredientesExcluidos?: number[], agregados?: any[], varianteSeleccionada?: any, varianteSecundariaSeleccionada?: any) => {
         let ingExNombres: string[] = []
         if (ingredientesExcluidos && ingredientesExcluidos.length > 0) {
             ingExNombres = producto.ingredientes
@@ -424,23 +383,35 @@ const MenuDelivery = () => {
             }
         }
 
-        let precioFinal = producto.precio
+        // Calculate discounted price
+        let basePrecio = varianteSeleccionada ? parseFloat(varianteSeleccionada.precio) : parseFloat(producto.precio)
+        basePrecio += varianteSecundariaSeleccionada ? parseFloat(varianteSecundariaSeleccionada.precio) : 0
+        let precioFinal = basePrecio
         if (!esCanje && producto.descuento && producto.descuento > 0) {
-            precioFinal = (parseFloat(producto.precio) * (1 - producto.descuento / 100)).toFixed(2)
+            precioFinal = basePrecio * (1 - producto.descuento / 100)
         }
 
         const precioAgregados = agregados ? agregados.reduce((sum: number, ag: any) => sum + parseFloat(ag.precio || 0), 0) : 0;
-        const precioFinalNumber = esCanje ? 0 : parseFloat(precioFinal) + precioAgregados;
+        const precioFinalNumber = esCanje ? 0 : precioFinal + precioAgregados;
+
+        const nombresVariantes = [varianteSeleccionada?.nombre, varianteSecundariaSeleccionada?.nombre].filter(Boolean).join(' · ')
+        const baseNombre = nombresVariantes ? `${producto.nombre} - ${nombresVariantes}` : producto.nombre;
+        const nombreFinal = esCanje ? `${baseNombre} (Canje)` : baseNombre;
 
         const newItem = {
             id: Math.random().toString(36).substr(2, 9),
             productoId: producto.id,
-            nombre: esCanje ? `${producto.nombre} (Canje)` : producto.nombre,
+            categoria: producto.categoria,
+            nombre: nombreFinal,
             precio: precioFinalNumber.toFixed(2),
-            precioOriginal: producto.precio,
+            precioOriginal: varianteSeleccionada ? varianteSeleccionada.precio : producto.precio,
             descuento: producto.descuento || 0,
             imagenUrl: producto.imagenUrl,
             cantidad,
+            varianteId: varianteSeleccionada?.id,
+            varianteNombre: varianteSeleccionada?.nombre,
+            varianteSecundariaId: varianteSecundariaSeleccionada?.id,
+            varianteSecundariaNombre: varianteSecundariaSeleccionada?.nombre,
             ingredientesExcluidos: ingredientesExcluidos || [],
             ingredientesExcluidosNombres: ingExNombres,
             agregados: agregados || [],
@@ -451,10 +422,14 @@ const MenuDelivery = () => {
 
         setCartItems(prev => [...prev, newItem])
 
-        setTimeout(() => {
-            setCartAnimation(true)
-            setTimeout(() => setCartAnimation(false), 300)
-        }, 850)
+        const bumpCart = () => {
+            setTimeout(() => {
+                setCartAnimation(true)
+                setTimeout(() => setCartAnimation(false), 300)
+            }, 850)
+        }
+
+        bumpCart()
     }
 
     const handleEliminarItem = (itemId: string) => {
@@ -471,6 +446,136 @@ const MenuDelivery = () => {
         return ['28vh', '42vh', '57vh', '71vh'][n]
     })()
 
+    const submitOrder = useCallback(async (data: any) => {
+        if (!data || !restaurante || !username) return
+
+        // Local pausado por suscripción (Tarea 8): cerrado temporalmente, no toma pedidos nuevos.
+        if (restaurante?.pausadoPorSuscripcion) {
+            toast.error('El local está cerrado temporalmente', {
+                description: 'No está recibiendo pedidos en este momento.',
+                duration: 5000
+            })
+            isSubmittingRef.current = false
+            return
+        }
+
+        const estadoActual = checkIsOpen(horarios)
+        if (!estadoActual.abierto && !restaurante?.permitirPedidosProgramados) {
+            toast.error('El restaurante está cerrado', {
+                description: estadoActual.proximaApertura
+                    ? `Abre ${estadoActual.proximaApertura}`
+                    : 'El restaurante no está disponible en este momento.',
+                duration: 5000
+            })
+            isSubmittingRef.current = false
+            return
+        }
+
+        setSubmittingOrder(true)
+        try {
+            const url = import.meta.env.VITE_API_URL || 'http://localhost:3000/api'
+            const tipoPedido = data.tipoPedido as 'delivery' | 'takeaway'
+            const endpoint = tipoPedido === 'delivery' ? '/public/delivery/create' : '/public/takeaway/create'
+            const payload: any = {
+                restauranteId: restaurante.id,
+                nombreCliente: data.nombre,
+                telefono: data.telefono,
+                notas: data.notas || '',
+                items: cartItems.map((i: any) => ({
+                    productoId: i.productoId,
+                    varianteId: i.varianteId,
+                    varianteSecundariaId: i.varianteSecundariaId,
+                    cantidad: i.cantidad,
+                    ingredientesExcluidos: i.ingredientesExcluidos,
+                    agregados: i.agregados || [],
+                    esCanjePuntos: i.esCanjePuntos || false
+                })),
+                metodoPago: data.metodoPago,
+            }
+            if (data.codigoDescuentoId) payload.codigoDescuentoId = data.codigoDescuentoId
+            if (tipoPedido === 'delivery') {
+                payload.direccion = data.direccion
+                payload.lat = data.lat
+                payload.lng = data.lng
+                if (data.sucursalId) payload.sucursalId = data.sucursalId
+            }
+            if (tipoPedido === 'takeaway' && data.sucursalId) payload.sucursalId = data.sucursalId
+            if (data.horarioProgramado) payload.horarioProgramado = data.horarioProgramado
+            const res = await fetch(`${url}${endpoint}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            })
+            const result = await res.json()
+            if (result.success) {
+                localStorage.setItem('cliente_nombre', data.nombre)
+                localStorage.setItem('cliente_telefono', data.telefono)
+                if (tipoPedido === 'delivery') {
+                    localStorage.setItem('cliente_direccion', data.direccion || '')
+                    if (data.lat != null) localStorage.setItem('cliente_lat', String(data.lat))
+                    if (data.lng != null) localStorage.setItem('cliente_lng', String(data.lng))
+                }
+                localStorage.removeItem(`deliveryCart_${username}`)
+                const orderInfo = {
+                    pedidoId: result.data.id,
+                    tipoPedido,
+                    total: result.data.total ? parseFloat(result.data.total) : parseFloat(data.total || '0'),
+                    items: cartItems,
+                    metodoPago: data.metodoPago,
+                    nombreCliente: data.nombre,
+                    aliasDinamico: result.data.aliasDinamico,
+                    cvuDinamico: result.data.cvuDinamico,
+                    deliveryFee: result.data.deliveryFee,
+                    zonaNombre: result.data.zonaNombre,
+                    direccion: tipoPedido === 'delivery' ? data.direccion : null,
+                    montoDescuento: data.montoDescuento > 0 ? data.montoDescuento : undefined,
+                    horarioProgramado: data.horarioProgramado || undefined,
+                    notas: data.notas || undefined,
+                }
+                sessionStorage.setItem('deliveryOrderInfo', JSON.stringify(orderInfo))
+                if (restaurante.avisosWhatsappClienteEnabled === false) {
+                    const redirected = await redirectPedidoAlWhatsapp(
+                        orderInfo,
+                        restaurante,
+                        result.data.whatsappDestino,
+                        result.data.transferenciaAliasDestino,
+                    )
+                    if (!redirected) {
+                        toast.error('No pudimos abrir WhatsApp', { description: 'Podés continuar desde el resumen de tu pedido.' })
+                        navigate('/success')
+                    }
+                } else {
+                    navigate('/success')
+                }
+            } else {
+                if (result.code === 'FUERA_DE_ZONA') {
+                    toast.error('Fuera de zona', { description: 'Tu dirección está fuera del área de delivery. Probá con otra dirección o elegí Take Away.', duration: 6000 })
+                } else {
+                    toast.error(result.message || 'Error al crear el pedido')
+                }
+            }
+        } catch {
+            toast.error('Ocurrió un error al enviar el pedido')
+        } finally {
+            setSubmittingOrder(false)
+            isSubmittingRef.current = false
+        }
+    }, [restaurante, username, cartItems, navigate, horarios])
+
+    const handleCheckoutMessage = useCallback((msg: any) => {
+        if (msg.type === 'INICIAR_EDICION_CHECKOUT') {
+            setEditSemaphoreLocal({ clienteId: 'solo', clienteNombre: msg.payload.clienteNombre })
+        } else if (msg.type === 'CANCELAR_EDICION_CHECKOUT') {
+            setEditSemaphoreLocal(null)
+        } else if (msg.type === 'MODIFICAR_CHECKOUT') {
+            checkoutDataRef.current = msg.payload.updates
+            setCheckoutDeliveryData(msg.payload.updates)
+        } else if (msg.type === 'ACEPTAR_EDICION_CHECKOUT') {
+            if (isSubmittingRef.current) return
+            isSubmittingRef.current = true
+            submitOrder(checkoutDataRef.current)
+        }
+    }, [submitOrder])
     const crearSala = async (nombreParaSala: string) => {
         if (!nombreParaSala.trim() || !restaurante?.id) return
         setCreandoSala(true)
@@ -484,6 +589,7 @@ const MenuDelivery = () => {
             const data = await res.json()
             if (data.success && data.data?.token) {
                 localStorage.setItem('cliente_nombre', nombreParaSala.trim())
+                setModalSalaOpen(false)
                 navigate(`/sala/${data.data.token}/nombre`)
             } else {
                 toast.error('Error al crear el pedido entre amigos')
@@ -492,7 +598,6 @@ const MenuDelivery = () => {
             toast.error('Error al conectar con el servidor')
         } finally {
             setCreandoSala(false)
-            setModalSalaOpen(false)
         }
     }
 
@@ -549,13 +654,24 @@ const MenuDelivery = () => {
                 </div>
             </div>
 
-            {!estadoAbierto.abierto && (
+            {restaurante?.pausadoPorSuscripcion ? (
+                // Local pausado por suscripción (Tarea 8): cerrado temporalmente, no toma pedidos.
+                // Tiene prioridad sobre el banner de horario y no se puede sortear con pedidos programados.
+                <div className="bg-red-600 text-white">
+                    <div className="max-w-2xl lg:max-w-5xl xl:max-w-6xl mx-auto px-5 py-3 flex items-center justify-center gap-2">
+                        <Clock className="w-4 h-4 shrink-0" />
+                        <p className="text-sm font-semibold text-center">
+                            Cerrado temporalmente. No estamos recibiendo pedidos por ahora.
+                        </p>
+                    </div>
+                </div>
+            ) : !estadoAbierto.abierto && (
                 <div className={restaurante?.permitirPedidosProgramados ? "bg-amber-500 text-white" : "bg-red-600 text-white"}>
                     <div className="max-w-2xl lg:max-w-5xl xl:max-w-6xl mx-auto px-5 py-3 flex items-center justify-center gap-2">
                         <Clock className="w-4 h-4 shrink-0" />
                         <p className="text-sm font-semibold text-center">
                             {restaurante?.permitirPedidosProgramados
-                                ? 'Arma tu pedido y programa el horario al que quieres recibirlo.'
+                                ? 'Estamos cerrados. Podés programar tu pedido para después'
                                 : `Estamos cerrados${estadoAbierto.proximaApertura ? `. Abrimos ${estadoAbierto.proximaApertura}` : ''}`
                             }
                         </p>
@@ -580,6 +696,12 @@ const MenuDelivery = () => {
                                 className="w-48 h-48 rounded-md object-cover block dark:hidden"
                             />
                         )}
+                        {/* <div>
+                            <p className="text-sm text-muted-foreground font-medium mb-0.5">Bienvenido a</p>
+                            <h1 className="text-3xl font-extrabold tracking-tight text-primary">
+                                {restaurante.nombre}
+                            </h1>
+                        </div> */}
                     </div>
                 </section>
 
@@ -758,7 +880,7 @@ const MenuDelivery = () => {
                 />
             )}
 
-            {/* CARRITO DRAWER (bottom sheet) */}
+            {/* CARRITO DRAWER */}
             <div
                 className={`fixed inset-x-0 bottom-0 z-50 transition-transform duration-300 ease-out ${carritoAbierto ? 'translate-y-0' : 'translate-y-full pointer-events-none'}`}
             >
@@ -809,7 +931,7 @@ const MenuDelivery = () => {
                                 setEditSemaphoreLocal(null)
                             }}
                             restauranteId={restaurante?.id ?? 0}
-                            restauranteUsername={username}
+                            restauranteUsername={username ?? null}
                             itemsTotal={totalPedido}
                             totalItems={cartItems.length}
                             onConfirmarClick={() => {}}
@@ -818,10 +940,11 @@ const MenuDelivery = () => {
                             clienteNombre={localStorage.getItem('cliente_nombre') || ''}
                             checkoutData={checkoutDeliveryData}
                             editSemaphore={editSemaphoreLocal}
-                            restauranteDireccion={restaurante?.direccion ?? undefined}
+                            restauranteDireccion={restaurante?.direccionTexto ?? restaurante?.direccion ?? undefined}
                             onTituloChange={setTituloCheckout}
-                            labelGuardar="Confirmar y pedir"
-                            localCerrado={!estadoAbierto.abierto}
+                            labelGuardar={restaurante?.avisosWhatsappClienteEnabled === false ? 'Enviar pedido al WhatsApp' : 'Confirmar y pedir'}
+                            enviarPedidoWhatsapp={restaurante?.avisosWhatsappClienteEnabled === false}
+                            localCerrado={!estadoAbierto.abierto || !!restaurante?.pausadoPorSuscripcion}
                         />
                     ) : cartItems.length === 0 ? (
                         <div className="flex flex-col items-center justify-center text-center gap-4 opacity-60 px-5 py-12">
@@ -889,14 +1012,17 @@ const MenuDelivery = () => {
                                 </div>
                                 <Button
                                     className="w-full h-12 rounded-xl font-bold text-base shadow-md"
-                                    disabled={!estadoAbierto.abierto && !restaurante?.permitirPedidosProgramados}
+                                    disabled={!!restaurante?.pausadoPorSuscripcion || (!estadoAbierto.abierto && !restaurante?.permitirPedidosProgramados)}
                                     onClick={() => {
+                                        if (restaurante?.pausadoPorSuscripcion) return
                                         if (!estadoAbierto.abierto && !restaurante?.permitirPedidosProgramados) return
                                         setMostrarCheckoutEnCarrito(true)
                                         setExpandido(false)
                                     }}
                                 >
-                                    {!estadoAbierto.abierto && !restaurante?.permitirPedidosProgramados ? 'Cerrado' : 'Continuar'}
+                                    {restaurante?.pausadoPorSuscripcion
+                                        ? 'Cerrado temporalmente'
+                                        : (!estadoAbierto.abierto && !restaurante?.permitirPedidosProgramados ? 'Cerrado' : 'Continuar')}
                                 </Button>
                             </div>
                         </>
@@ -1028,29 +1154,73 @@ const EmptyState = () => (
     </div>
 )
 
+
 const ProductoCard = ({ producto, onClick, fullWidth }: { producto: any, onClick: () => void, fullWidth?: boolean }) => {
     const tieneDescuento = !!(producto.descuento && producto.descuento > 0)
     const precioOriginal = parseFloat(producto.precio)
     const precioFinal = tieneDescuento ? precioOriginal * (1 - producto.descuento / 100) : precioOriginal
 
-    // Diseño sólido (único): el glassmorphism quedó discontinuado.
+    // ─────────────────────────────────────────────
+    // DISEÑO 3: TEXT-ONLY (SIN IMAGEN)
+    // ─────────────────────────────────────────────
+    if (!producto.imagenUrl) {
+        return (
+            <div
+                className={`group relative flex flex-col justify-between ${fullWidth ? 'w-full' : 'w-44 shrink-0 lg:w-full'} min-h-[140px] p-4.5 rounded-[24px] bg-card border border-border/50 shadow-sm hover:shadow-md transition-all duration-300 hover:border-primary/30 hover:bg-accent/20 hover:scale-[1.02] active:scale-[0.98] ${!fullWidth ? 'snap-start' : ''}`}
+                onClick={onClick}
+            >
+                <div className="flex-1">
+                    <div className="flex justify-between items-start gap-3 mb-2">
+                        <h3 className="font-bold text-[15px] leading-snug text-foreground line-clamp-3">
+                            {producto.nombre}
+                        </h3>
+                        {tieneDescuento && (
+                            <span className="shrink-0 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-[10px] font-extrabold px-1.5 py-0.5 rounded-md uppercase tracking-wider">
+                                -{producto.descuento}%
+                            </span>
+                        )}
+                    </div>
+                    {producto.descripcion && (
+                        <p className="text-xs text-muted-foreground line-clamp-3 leading-relaxed font-medium">
+                            {producto.descripcion}
+                        </p>
+                    )}
+                </div>
+
+                <div className="mt-4 flex items-end gap-1.5">
+                    <span className={`font-black text-[18px] ${tieneDescuento ? 'text-emerald-600 dark:text-emerald-400' : 'text-primary'}`}>
+                        ${precioFinal.toFixed(0)}
+                    </span>
+                    {tieneDescuento && (
+                        <span className="text-[11px] font-semibold text-muted-foreground line-through opacity-70 mb-0.5">
+                            ${precioOriginal.toFixed(0)}
+                        </span>
+                    )}
+                </div>
+                {tieneDescuento && producto.descuentoFechaFin && formatTimeLeft(producto.descuentoFechaFin) && (
+                    <div className="mt-1.5 flex items-center gap-1 text-[10px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 px-2 py-0.5 rounded-full border border-amber-500/20 w-fit">
+                        <span>⏱</span>
+                        <span>Vence en {formatTimeLeft(producto.descuentoFechaFin)}</span>
+                    </div>
+                )}
+            </div>
+        )
+    }
+
+    // ─────────────────────────────────────────────
+    // DISEÑO SÓLIDO (CON IMAGEN) — único diseño; el glassmorphism quedó discontinuado
+    // ─────────────────────────────────────────────
     return (
         <div
             className={`group relative flex flex-col ${fullWidth ? 'w-full' : 'w-48 shrink-0 lg:w-full'} h-[260px] rounded-[24px] bg-card border border-border/50 shadow-md hover:shadow-xl transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] overflow-hidden ${!fullWidth ? 'snap-start' : ''}`}
             onClick={onClick}
         >
             <div className="w-full h-[130px] shrink-0 bg-zinc-900 relative">
-                {producto.imagenUrl ? (
-                    <img
-                        src={producto.imagenUrl}
-                        alt={producto.nombre}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
-                    />
-                ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-linear-to-br from-zinc-800 to-zinc-900">
-                        <Utensils className="w-10 h-10 text-primary" />
-                    </div>
-                )}
+                <img
+                    src={producto.imagenUrl}
+                    alt={producto.nombre}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
+                />
                 {tieneDescuento && (
                     <div className="absolute top-2.5 left-2.5 z-10">
                         <span className="bg-emerald-500 text-white text-[10px] font-extrabold px-2 py-0.5 rounded-full shadow-lg uppercase tracking-wide">

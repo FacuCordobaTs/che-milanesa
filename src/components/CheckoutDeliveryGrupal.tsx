@@ -4,7 +4,7 @@ import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { toast } from 'sonner'
-import { MapPin, Store, Truck, AlertTriangle, Loader2, Pencil, X, Tag, Home, Building2, Clock, CreditCard, Wallet, Banknote, ChevronLeft, Check, Zap } from 'lucide-react'
+import { MapPin, Store, Truck, AlertTriangle, Loader2, Pencil, X, Tag, Home, Building2, Clock, CreditCard, Wallet, Banknote, ChevronLeft, Check, Zap, MessageCircle } from 'lucide-react'
 import { AddressAutocomplete } from '@/components/AddressAutocomplete'
 import { AddressMapPreview } from '@/components/AddressMapPreview'
 import type { CheckoutDeliveryData, CheckoutEditSemaphore } from '@/store/mesaStore'
@@ -34,8 +34,10 @@ interface CheckoutDeliveryGrupalProps {
   onTituloChange?: (titulo: string) => void
   /** Texto personalizado para el botón del último paso (default: 'Guardar datos') */
   labelGuardar?: string
-  /** El local está cerrado ahora mismo. Si solo se permite pedir por estar habilitados los pedidos programados, obliga a elegir un horario (no se puede pedir "para ahora"). */
+  /** El local está cerrado ahora mismo. Si solo se puede pedir por estar habilitados los pedidos programados, obliga a elegir un horario (no se puede pedir "para ahora"). */
   localCerrado?: boolean
+  /** Sin Avisos automáticos, el cliente debe enviar el pedido desde su WhatsApp. */
+  enviarPedidoWhatsapp?: boolean
 }
 
 export function CheckoutDeliveryGrupal({
@@ -55,6 +57,7 @@ export function CheckoutDeliveryGrupal({
   onTituloChange,
   labelGuardar,
   localCerrado = false,
+  enviarPedidoWhatsapp = false,
 }: CheckoutDeliveryGrupalProps) {
   const [tipoPedido, setTipoPedido] = useState<'delivery' | 'takeaway'>(checkoutData?.tipoPedido || 'delivery')
   const [nombre, setNombre] = useState(checkoutData?.nombre || localStorage.getItem('cliente_nombre') || '')
@@ -69,7 +72,14 @@ export function CheckoutDeliveryGrupal({
   const [programarPedido, setProgramarPedido] = useState(!!(checkoutData?.horarioProgramado))
   const [horarioProgramado, setHorarioProgramado] = useState(checkoutData?.horarioProgramado || '')
   const [metodoPago, setMetodoPago] = useState<string | null>(checkoutData?.metodoPago ?? null)
-  const [sucursales, setSucursales] = useState<{ id: number; nombre: string; direccion: string | null }[]>([])
+  const [sucursales, setSucursales] = useState<Array<{
+    id: number
+    nombre: string
+    direccion: string | null
+    direccionLat: string | null
+    direccionLng: string | null
+    direccionCiudad: string | null
+  }>>([])
   const [sucursalSeleccionada, setSucursalSeleccionada] = useState<number | null>(checkoutData?.sucursalId ?? null)
   const [sucursalDelivery, setSucursalDelivery] = useState<number | null>(null)
   const [availablePaymentMethods, setAvailablePaymentMethods] = useState<MetodoPublico[]>([])
@@ -98,6 +108,19 @@ export function CheckoutDeliveryGrupal({
   const itemsTotalNum = parseFloat(itemsTotal)
   const subtotalConEnvio = tipoPedido === 'delivery' ? itemsTotalNum + deliveryFee : itemsTotalNum
   const total = Math.max(0, subtotalConEnvio - montoDescuento)
+  const ciudadesSucursales = Array.from(new Set(
+    sucursales.map((s) => s.direccionCiudad?.trim()).filter((city): city is string => Boolean(city)),
+  ))
+  const ubicacionesSucursales = sucursales.flatMap((s) => {
+    const sucursalLat = Number(s.direccionLat)
+    const sucursalLng = Number(s.direccionLng)
+    return Number.isFinite(sucursalLat) && Number.isFinite(sucursalLng)
+      ? [{ lat: sucursalLat, lng: sucursalLng }]
+      : []
+  })
+  const direccionRetiro = sucursales.length === 1
+    ? sucursales[0].direccion
+    : restauranteDireccion
 
   useEffect(() => {
     if (!restauranteUsername || !estoyEditando || restauranteData) return
@@ -417,6 +440,7 @@ export function CheckoutDeliveryGrupal({
   const usarFranjas = !!restauranteData?.usarFranjasHorario
   // Si el local está cerrado y solo se puede pedir porque están habilitados los pedidos programados,
   // el cliente está obligado a elegir un horario (no puede pedir "para ahora"), igual que con soloPedidosProgramados.
+  // La opción "Lo antes posible" solo existe cuando NO es obligatorio programar (local abierto y se puede pedir para ahora).
   const programacionObligatoria = permitirProgramar && (!!restauranteData?.soloPedidosProgramados || localCerrado)
   const franjaObligatoria = usarFranjas && programacionObligatoria
 
@@ -503,7 +527,15 @@ export function CheckoutDeliveryGrupal({
       {tipoPedido === 'delivery' && (
         <div className="space-y-3 animate-in fade-in slide-in-from-top-2">
           <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">Dirección de entrega</Label>
-          <AddressAutocomplete value={direccion} onChange={handleAddressChange} placeholder="Ej: Espora 811, Santa Fe" />
+          <AddressAutocomplete
+            value={direccion}
+            onChange={handleAddressChange}
+            placeholder={ciudadesSucursales.length === 1
+              ? `Ej: calle y número, ${ciudadesSucursales[0]}`
+              : 'Ej: calle y número'}
+            allowedCities={ciudadesSucursales}
+            biasLocations={ubicacionesSucursales}
+          />
           {lat !== null && lng !== null && <AddressMapPreview lat={lat} lng={lng} />}
           {lat !== null && lng !== null && direccion && (
             <div className="animate-in fade-in duration-300">
@@ -569,10 +601,10 @@ export function CheckoutDeliveryGrupal({
         </div>
       )}
 
-      {tipoPedido === 'takeaway' && restauranteDireccion && sucursales.length <= 1 && (
+      {tipoPedido === 'takeaway' && direccionRetiro && sucursales.length <= 1 && (
         <div className="flex items-center gap-2.5 px-4 py-3 bg-secondary/50 rounded-2xl">
           <MapPin className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-          <span className="text-sm text-muted-foreground">Retirás en <span className="font-semibold text-foreground">{restauranteDireccion}</span></span>
+          <span className="text-sm text-muted-foreground">Retirás en <span className="font-semibold text-foreground">{direccionRetiro}</span></span>
         </div>
       )}
     </div>
@@ -858,7 +890,7 @@ export function CheckoutDeliveryGrupal({
   const totalSummary = (
     <div className="bg-secondary/40 rounded-2xl px-4 py-4 space-y-2.5">
       <div className="flex justify-between text-sm">
-        <span className="text-muted-foreground">Subtotal · {totalItems} items</span>
+        <span className="text-muted-foreground">Subtotal · {totalItems} items <span className="sr-only">con variantes seleccionadas incluidas</span></span>
         <span className="font-semibold">${itemsTotal}</span>
       </div>
       {checkoutData?.tipoPedido === 'delivery' && (checkoutData.deliveryFee ?? 0) > 0 && (
@@ -894,17 +926,19 @@ export function CheckoutDeliveryGrupal({
     const esUltimo = modo === 'pasos' ? paso === pasos.length - 1 : true
     footerButton = (
       <Button
-        className="w-full h-12 rounded-2xl font-bold text-base"
+        className={`w-full h-12 rounded-2xl font-bold text-base ${enviarPedidoWhatsapp && esUltimo ? 'bg-green-600 hover:bg-green-700 text-white' : ''}`}
         onClick={modo === 'pasos' ? handleSiguiente : handleGuardarEdicion}
         disabled={accionDisabled}
       >
+        {enviarPedidoWhatsapp && esUltimo && <MessageCircle className="w-5 h-5 mr-2" />}
         {modo === 'pasos' && !esUltimo ? 'Siguiente' : (labelGuardar || 'Guardar datos')}
       </Button>
     )
   } else if (checkoutData) {
     footerButton = datosCompletos ? (
-      <Button className="w-full h-12 rounded-2xl font-bold text-base" onClick={handleConfirmarPedido}>
-        Confirmar Pedido
+      <Button className={`w-full h-12 rounded-2xl font-bold text-base ${enviarPedidoWhatsapp ? 'bg-green-600 hover:bg-green-700 text-white' : ''}`} onClick={handleConfirmarPedido}>
+        {enviarPedidoWhatsapp && <MessageCircle className="w-5 h-5 mr-2" />}
+        {enviarPedidoWhatsapp ? 'Enviar pedido al WhatsApp' : 'Confirmar Pedido'}
       </Button>
     ) : (
       <p className="text-xs text-muted-foreground text-center py-2">Esperando que se completen los datos...</p>

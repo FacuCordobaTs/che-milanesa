@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState, useCallback } from 'react'
 import { cn } from '@/lib/utils'
-import { MapPin, X, Loader2, Search, AlertCircle } from 'lucide-react'
+import { MapPin, X, Loader2, Search } from 'lucide-react'
 import { useGoogleMapsScript } from '@/hooks/useGoogleMapsScript'
 
 interface AddressAutocompleteProps {
@@ -8,13 +8,32 @@ interface AddressAutocompleteProps {
     onChange: (address: string, lat: number | null, lng: number | null) => void
     placeholder?: string
     className?: string
+    /** Ciudades configuradas por el negocio. Una única ciudad también limita las sugerencias de Google. */
+    allowedCities?: string[]
+    /** Coordenadas de las sucursales, usadas para sesgar la búsqueda cuando hay más de una ciudad. */
+    biasLocations?: Array<{ lat: number; lng: number }>
+}
+
+function normalizeCity(value: string): string {
+    return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase()
+}
+
+function extractCity(components: google.maps.GeocoderAddressComponent[] | undefined): string | null {
+    if (!components) return null
+    for (const type of ['locality', 'postal_town', 'administrative_area_level_2']) {
+        const component = components.find((c) => c.types.includes(type))
+        if (component?.long_name) return component.long_name
+    }
+    return null
 }
 
 export function AddressAutocomplete({
     value,
     onChange,
     placeholder = 'Busca tu dirección...',
-    className
+    className,
+    allowedCities = [],
+    biasLocations = [],
 }: AddressAutocompleteProps) {
     const inputRef = useRef<HTMLInputElement>(null)
     const containerRef = useRef<HTMLDivElement>(null)
@@ -22,7 +41,7 @@ export function AddressAutocomplete({
     const [isFocused, setIsFocused] = useState(false)
     const [internalValue, setInternalValue] = useState(value)
     const [hasSelectedPlace, setHasSelectedPlace] = useState(!!value)
-    const [error, setError] = useState<string | null>(null)
+    const [cityError, setCityError] = useState<string | null>(null)
 
     const isLoaded = useGoogleMapsScript()
 
@@ -31,65 +50,74 @@ export function AddressAutocomplete({
         setInternalValue(value)
     }, [value])
 
-    const stableOnChange = useCallback(onChange, [])
-
-    const SANTA_FE_BOUNDS = {
-        north: -31.5400,
-        south: -31.6900,
-        east: -60.6400,
-        west: -60.7500
-    }
+    const stableOnChange = useCallback(
+        (address: string, lat: number | null, lng: number | null) => onChange(address, lat, lng),
+        [onChange],
+    )
+    const allowedCitiesKey = allowedCities.map(normalizeCity).sort().join('|')
+    const biasLocationsKey = biasLocations.map((p) => `${p.lat},${p.lng}`).join('|')
 
     // Initialize Google Places Autocomplete
     useEffect(() => {
         if (!isLoaded || !inputRef.current || autocompleteRef.current) return
 
-        const autocomplete = new google.maps.places.Autocomplete(inputRef.current, {
+        const options: google.maps.places.AutocompleteOptions = {
             componentRestrictions: { country: 'ar' },
-            bounds: SANTA_FE_BOUNDS,
-            strictBounds: true,
-            fields: ['formatted_address', 'geometry', 'address_components', 'name'],
+            fields: ['formatted_address', 'geometry', 'address_components'],
             types: ['address']
-        })
+        }
+
+        const autocomplete = new google.maps.places.Autocomplete(inputRef.current, options)
+
+        const uniqueCities = Array.from(new Set(allowedCities.map((city) => city.trim()).filter(Boolean)))
+        if (uniqueCities.length === 1) {
+            const geocoder = new google.maps.Geocoder()
+            void geocoder.geocode({ address: `${uniqueCities[0]}, Argentina` }).then(({ results }) => {
+                const viewport = results[0]?.geometry?.viewport
+                if (viewport) autocomplete.setOptions({ bounds: viewport, strictBounds: true })
+            }).catch(() => {})
+        } else if (biasLocations.length > 0) {
+            const bounds = new google.maps.LatLngBounds()
+            for (const point of biasLocations) bounds.extend(point)
+            autocomplete.setBounds(bounds)
+        }
 
         autocomplete.addListener('place_changed', () => {
-            setError(null)
             const place = autocomplete.getPlace()
-
-            const hasStreetNumber = place.address_components?.some(
-                (component) => component.types.includes('street_number')
-            )
-
-            if (!hasStreetNumber) {
-                setError('Por favor, ingresá el número de la calle (ej: San Martín 2050)')
-                setInternalValue(place.name || '')
-                setHasSelectedPlace(false)
-                stableOnChange('', null, null)
-                // Focus the input to let user append street number
-                if (inputRef.current) {
-                    inputRef.current.focus()
-                }
-                return
-            }
 
             if (place.geometry?.location) {
                 const lat = place.geometry.location.lat()
                 const lng = place.geometry.location.lng()
                 const formattedAddress = place.formatted_address || ''
+                const city = extractCity(place.address_components)
+                const allowed = new Set(allowedCities.map(normalizeCity))
+
+                if (allowed.size > 0 && (!city || !allowed.has(normalizeCity(city)))) {
+                    setInternalValue(formattedAddress)
+                    setHasSelectedPlace(false)
+                    setCityError(`Elegí una dirección de ${allowedCities.join(' o ')}`)
+                    stableOnChange(formattedAddress, null, null)
+                    return
+                }
 
                 setInternalValue(formattedAddress)
                 setHasSelectedPlace(true)
+                setCityError(null)
                 stableOnChange(formattedAddress, lat, lng)
             }
         })
 
         autocompleteRef.current = autocomplete
-    }, [isLoaded, stableOnChange])
+        return () => {
+            google.maps.event.clearInstanceListeners(autocomplete)
+            if (autocompleteRef.current === autocomplete) autocompleteRef.current = null
+        }
+    }, [isLoaded, stableOnChange, allowedCitiesKey, biasLocationsKey])
 
     const handleClear = () => {
         setInternalValue('')
         setHasSelectedPlace(false)
-        setError(null)
+        setCityError(null)
         stableOnChange('', null, null)
         inputRef.current?.focus()
     }
@@ -98,7 +126,7 @@ export function AddressAutocomplete({
         const val = e.target.value
         setInternalValue(val)
         setHasSelectedPlace(false)
-        setError(null)
+        setCityError(null)
         // When typing manually, clear lat/lng since it's not a selected place
         stableOnChange(val, null, null)
     }
@@ -109,16 +137,14 @@ export function AddressAutocomplete({
                 className={cn(
                     'relative flex items-center h-12 w-full rounded-xl border bg-transparent px-3 text-base transition-all duration-300',
                     'shadow-xs',
-                    error 
-                        ? 'border-red-500/50 ring-red-500/20 ring-[3px]' 
-                        : isFocused
-                            ? 'border-primary ring-primary/25 ring-[3px] shadow-primary/10 shadow-md'
-                            : 'border-input hover:border-primary/40',
-                    hasSelectedPlace && !isFocused && !error && 'border-emerald-500/50 bg-emerald-500/5',
+                    isFocused
+                        ? 'border-primary ring-primary/25 ring-[3px] shadow-primary/10 shadow-md'
+                        : 'border-input hover:border-primary/40',
+                    hasSelectedPlace && !isFocused && 'border-emerald-500/50 bg-emerald-500/5',
                     className
                 )}
             >
-                {hasSelectedPlace && !error ? (
+                {hasSelectedPlace ? (
                     <MapPin
                         className={cn(
                             'w-4.5 h-4.5 mr-2.5 shrink-0 transition-colors duration-300',
@@ -129,7 +155,7 @@ export function AddressAutocomplete({
                     <Search
                         className={cn(
                             'w-4.5 h-4.5 mr-2.5 shrink-0 transition-colors duration-300',
-                            error ? 'text-red-500' : isFocused ? 'text-primary' : 'text-muted-foreground'
+                            isFocused ? 'text-primary' : 'text-muted-foreground'
                         )}
                     />
                 )}
@@ -145,8 +171,7 @@ export function AddressAutocomplete({
                     className={cn(
                         'flex-1 h-full bg-transparent outline-none text-foreground',
                         'placeholder:text-muted-foreground/60',
-                        'text-sm',
-                        error && 'text-red-600 dark:text-red-400 font-medium'
+                        'text-sm'
                     )}
                     autoComplete="off"
                 />
@@ -172,28 +197,24 @@ export function AddressAutocomplete({
                 )}
             </div>
 
-            {error && (
-                <div className="flex items-center gap-1.5 mt-1.5 ml-1 animate-in fade-in slide-in-from-top-1 duration-200">
-                    <AlertCircle className="w-3.5 h-3.5 text-red-500" />
-                    <p className="text-[12px] font-medium text-red-500">{error}</p>
-                </div>
-            )}
-
             {/* Subtle helper text */}
-            {isFocused && !internalValue && !error && (
+            {isFocused && !internalValue && (
                 <p className="text-[11px] text-muted-foreground/70 mt-1.5 ml-1 animate-in fade-in slide-in-from-top-1 duration-200">
-                    Escribí tu calle y número para ver sugerencias
+                    Escribe tu calle y número para ver sugerencias
                 </p>
             )}
 
             {/* Confirmed address indicator */}
-            {hasSelectedPlace && !isFocused && internalValue && !error && (
+            {hasSelectedPlace && !isFocused && internalValue && (
                 <div className="flex items-center gap-1.5 mt-1.5 ml-1 animate-in fade-in slide-in-from-bottom-1 duration-300">
                     <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                     <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">
                         Dirección confirmada
                     </span>
                 </div>
+            )}
+            {cityError && (
+                <p className="text-[11px] text-destructive mt-1.5 ml-1" role="alert">{cityError}</p>
             )}
         </div>
     )

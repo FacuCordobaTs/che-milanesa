@@ -21,6 +21,31 @@ type BuildArgs = {
 
 const money = (n: number): string => `$${Math.round(n).toLocaleString('es-AR')}`
 
+// Símbolos del BMP (máximo tres bytes en UTF-8). El handoff web/escritorio de
+// WhatsApp de algunos equipos reemplaza los emojis astrales de cuatro bytes
+// por `�`, aunque la URL original esté bien codificada. Estos símbolos son
+// visuales, legibles y sobreviven ese recorrido completo.
+const EMOJI = {
+    saludo: '\u263A',
+    pedido: '\u2116',
+    cliente: '\u2022',
+    productos: '\u25A3',
+    resumen: '$',
+    pago: '\u25A4',
+    enlace: '\u279C',
+    delivery: '\u279C',
+    ubicacion: '\u2316',
+    retiro: '\u2302',
+    horario: '\u25F7',
+    notas: '\u270E',
+} as const
+
+/** Categoría del ítem (varios nombres posibles según el origen). 'Otros' si no la trae. */
+function itemCategoria(it: any): string {
+    const c = (it?.categoria ?? it?.categoriaNombre ?? '').toString().trim()
+    return c || 'Otros'
+}
+
 function paymentLine(orderInfo: any, effectiveMetodo: string, transferenciaAlias?: string | null): string {
     const aliasDinamico = orderInfo.aliasDinamico || orderInfo.cvuDinamico || null
     switch (effectiveMetodo) {
@@ -52,14 +77,13 @@ export function buildWhatsappOrderMessage(orderInfo: any, args: BuildArgs): stri
     const total = parseFloat(String(orderInfo?.total ?? 0)) || 0
 
     const L: string[] = []
-    L.push(`¡Hola${restaurantName ? ` ${restaurantName}` : ''}! 👋 Te paso mi pedido:`)
+    L.push(`¡Hola${restaurantName ? ` ${restaurantName}` : ''}! ${EMOJI.saludo} Te paso mi pedido:`)
     L.push('')
-    if (orderInfo?.pedidoId) L.push(`🧾 *Pedido #${orderInfo.pedidoId}*`)
-    if (orderInfo?.nombreCliente) L.push(`👤 ${orderInfo.nombreCliente}`)
+    if (orderInfo?.pedidoId) L.push(`${EMOJI.pedido} *Pedido #${orderInfo.pedidoId}*`)
+    if (orderInfo?.nombreCliente) L.push(`${EMOJI.cliente} ${orderInfo.nombreCliente}`)
     L.push('')
 
-    L.push('*🛒 Productos*')
-    for (const it of items) {
+    const pushItem = (it: any) => {
         const cantidad = it.cantidad ?? 1
         const linea = orderItemLineSubtotalSession(it)
         L.push(`• ${cantidad}x ${orderItemDisplayName(it)} — ${money(linea)}`)
@@ -72,30 +96,52 @@ export function buildWhatsappOrderMessage(orderInfo: any, args: BuildArgs): stri
             L.push(`   ↳ Con: ${ag.nombre}${precio > 0 ? ` (+${money(precio)})` : ''}`)
         }
     }
+
+    // Agrupar por categoría, preservando el orden de aparición de cada categoría.
+    const grupos: { categoria: string; items: any[] }[] = []
+    for (const it of items) {
+        const cat = itemCategoria(it)
+        let g = grupos.find((x) => x.categoria === cat)
+        if (!g) { g = { categoria: cat, items: [] }; grupos.push(g) }
+        g.items.push(it)
+    }
+
+    L.push(`*${EMOJI.productos} Productos*`)
+    // Siempre agrupamos por categoría, aunque sea una sola: el encabezado de la
+    // categoría ayuda a leer el pedido en WhatsApp.
+    grupos.forEach((g, idx) => {
+        if (idx > 0) L.push('')
+        L.push(`_${g.categoria}_`)
+        for (const it of g.items) pushItem(it)
+    })
     L.push('')
 
-    L.push('*💰 Resumen*')
+    L.push(`*${EMOJI.resumen} Resumen*`)
     L.push(`Subtotal: ${money(subtotal)}`)
     if (esDelivery) L.push(`Envío${orderInfo?.zonaNombre ? ` (${orderInfo.zonaNombre})` : ''}: ${deliveryFee === 0 ? 'Gratis' : money(deliveryFee)}`)
     if (descuento > 0) L.push(`Descuento: -${money(descuento)}`)
     L.push(`*Total: ${money(total)}*`)
     L.push('')
 
-    L.push(`*💳 Pago:* ${paymentLine(orderInfo, effectiveMetodo, transferenciaAlias)}`)
+    L.push(`*${EMOJI.pago} Pago:* ${paymentLine(orderInfo, effectiveMetodo, transferenciaAlias)}`)
+    if (effectiveMetodo === 'mercadopago_checkout' && orderInfo?.mercadoPagoCheckoutUrl) {
+        L.push(`${EMOJI.enlace} *Para el cliente:* pagá tu pedido desde este link:`)
+        L.push(String(orderInfo.mercadoPagoCheckoutUrl))
+    }
     L.push('')
 
     if (esDelivery) {
-        L.push('*🛵 Entrega:* Delivery')
-        if (orderInfo?.direccion) L.push(`📍 ${orderInfo.direccion}`)
+        L.push(`*${EMOJI.delivery} Entrega:* Delivery`)
+        if (orderInfo?.direccion) L.push(`${EMOJI.ubicacion} ${orderInfo.direccion}`)
     } else {
-        L.push('*🏪 Retiro en el local*')
-        if (restaurantDireccion) L.push(`📍 ${restaurantDireccion}`)
+        L.push(`*${EMOJI.retiro} Retiro en el local*`)
+        if (restaurantDireccion) L.push(`${EMOJI.ubicacion} ${restaurantDireccion}`)
     }
-    if (orderInfo?.horarioProgramado) L.push(`⏰ Programado: ${orderInfo.horarioProgramado}`)
+    if (orderInfo?.horarioProgramado) L.push(`${EMOJI.horario} Programado: ${orderInfo.horarioProgramado}`)
 
     if (orderInfo?.notas) {
         L.push('')
-        L.push(`📝 ${orderInfo.notas}`)
+        L.push(`${EMOJI.notas} ${orderInfo.notas}`)
     }
 
     return L.join('\n')

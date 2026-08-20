@@ -20,11 +20,15 @@ export function orderItemDisplayName(item: {
     nombre?: string
     nombreProducto?: string
     varianteNombre?: string | null
+    varianteSecundariaNombre?: string | null
 }): string {
     const n = item.nombre?.trim()
     if (n) return n
     const base = item.nombreProducto?.trim() || 'Producto'
-    const v = item.varianteNombre?.trim()
+    const v = [item.varianteNombre, item.varianteSecundariaNombre]
+        .map(value => value?.trim())
+        .filter(Boolean)
+        .join(' · ')
     return v ? `${base} - ${v}` : base
 }
 
