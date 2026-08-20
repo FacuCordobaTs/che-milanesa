@@ -254,9 +254,10 @@ const Menu = () => {
     ? categoriasOrdenadas.flatMap(c => productosPorCategoria[c] || [])
     : productosFiltrados
 
-  const agregarAlPedido = (producto: typeof productos[0] | any, cantidad: number = 1, ingredientesExcluidos?: number[], agregados?: any[]) => {
+  const agregarAlPedido = (producto: typeof productos[0] | any, cantidad: number = 1, ingredientesExcluidos?: number[], agregados?: any[], varianteSeleccionada?: any, varianteSecundariaSeleccionada?: any) => {
     if (!clienteNombre) return
-    let precioBase = parseFloat(String(producto.precio))
+    let precioBase = varianteSeleccionada ? parseFloat(String(varianteSeleccionada.precio)) : parseFloat(String(producto.precio))
+    precioBase += varianteSecundariaSeleccionada ? parseFloat(String(varianteSecundariaSeleccionada.precio)) : 0
     if (producto.descuento && producto.descuento > 0) {
       precioBase = precioBase * (1 - producto.descuento / 100)
     }
@@ -271,7 +272,11 @@ const Menu = () => {
         precioUnitario,
         imagenUrl: producto.imagenUrl,
         ingredientesExcluidos: ingredientesExcluidos || [],
-        agregados: agregados || []
+        agregados: agregados || [],
+        varianteId: varianteSeleccionada?.id,
+        varianteNombre: varianteSeleccionada?.nombre,
+        varianteSecundariaId: varianteSecundariaSeleccionada?.id,
+        varianteSecundariaNombre: varianteSecundariaSeleccionada?.nombre,
       },
     })
     setTimeout(() => abrirCarrito(), 350)

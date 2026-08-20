@@ -93,7 +93,7 @@ export function buildWhatsappOrderMessage(orderInfo: any, args: BuildArgs): stri
         if (sin.length > 0) L.push(`   ↳ Sin: ${sin.join(', ')}`)
         for (const ag of parseAgregadosList(it.agregados)) {
             const precio = parseFloat(String(ag.precio ?? 0)) || 0
-            L.push(`   ↳ Con: ${ag.nombre}${precio > 0 ? ` (+${money(precio)})` : ''}`)
+            L.push(`   ↳ Extra: ${ag.nombre}${precio > 0 ? ` (+${money(precio)})` : ''}`)
         }
     }
 
