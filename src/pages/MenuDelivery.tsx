@@ -326,7 +326,14 @@ const MenuDelivery = () => {
         }
     }
 
-    const categoriasBase = Array.from(new Set(productos.map(p => p.categoria).filter(Boolean)))
+    const ordenCategoria = (nombre: string) =>
+        productos.find(p => p.categoria === nombre)?.categoriaOrden ?? 0
+    const compararCategorias = (a: string, b: string) => {
+        if (a === 'Sin categoría') return 1
+        if (b === 'Sin categoría') return -1
+        return ordenCategoria(a) - ordenCategoria(b) || a.localeCompare(b)
+    }
+    const categoriasBase = Array.from(new Set<string>(productos.map(p => p.categoria).filter(Boolean))).sort(compararCategorias)
     const tieneProductosCanje = productos.some(p => p.puntosNecesarios > 0)
     const categorias = ['All', ...categoriasBase]
     if (restaurante?.sistemaPuntos && tieneProductosCanje) categorias.push('Canje Puntos')
@@ -344,11 +351,7 @@ const MenuDelivery = () => {
         ? productos
         : productos.filter(p => p.categoria === selectedCategory)
 
-    const categoriasOrdenadas = Object.keys(productosPorCategoria).sort((a, b) => {
-        if (a === 'Sin categoría') return 1
-        if (b === 'Sin categoría') return -1
-        return a.localeCompare(b)
-    })
+    const categoriasOrdenadas = Object.keys(productosPorCategoria).sort(compararCategorias)
 
     const abrirDetalleProducto = (producto: any) => {
         setSelectedProduct(producto)
