@@ -493,7 +493,7 @@ export function ProductDetailDrawer({ product, open, onClose, onAddToOrder, sibl
                                             <span className="flex items-center gap-2">
                                               <span className={cn('text-[15px]', sel ? 'font-semibold text-primary' : 'text-muted-foreground')}>
                                                 {stage === 'secondary'
-                                                  ? (parseFloat(v.precio) > 0 ? `+$${parseFloat(v.precio).toFixed(2)}` : 'Sin adicional')
+                                                  ? (parseFloat(v.precio) > 0 ? `+$${parseFloat(v.precio).toFixed(2)}` : '')
                                                   : `$${parseFloat(v.precio).toFixed(2)}`}
                                               </span>
                                               {sel && <Check className="h-[18px] w-[18px] text-primary" />}

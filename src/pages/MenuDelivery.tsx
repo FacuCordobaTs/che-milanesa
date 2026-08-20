@@ -689,14 +689,14 @@ const MenuDelivery = () => {
                             <img
                                 src={restaurante.imagenUrl}
                                 alt="logo"
-                                className={`w-48 h-48 rounded-md object-cover ${restaurante.imagenLightUrl ? 'hidden dark:block' : ''}`}
+                                className={`max-w-48 max-h-48 h-auto w-auto rounded-md object-contain ${restaurante.imagenLightUrl ? 'hidden dark:block' : ''}`}
                             />
                         )}
                         {restaurante.imagenLightUrl && (
                             <img
                                 src={restaurante.imagenLightUrl}
                                 alt="logo"
-                                className="w-48 h-48 rounded-md object-cover block dark:hidden"
+                                className="max-w-48 max-h-48 h-auto w-auto rounded-md object-contain block dark:hidden"
                             />
                         )}
                         {/* <div>
