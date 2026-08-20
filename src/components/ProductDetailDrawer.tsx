@@ -674,9 +674,7 @@ export function ProductDetailDrawer({ product, open, onClose, onAddToOrder, sibl
                                 transition={{ duration: 0.2 }}
                                 className="absolute inset-0 flex items-center justify-center"
                               >
-                                {stage === 'secondary'
-                                  ? (product.tituloVariantesSecundarias || 'Elegí también una segunda opción')
-                                  : (product.tituloVariantesPrimarias || 'Elegí una opción')}
+                                Continuar
                               </motion.span>
                             ) : stageIndex < stages.length - 1 ? (
                               <motion.span
