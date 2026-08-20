@@ -505,6 +505,9 @@ export function ProductDetailDrawer({ product, open, onClose, onAddToOrder, sibl
                                     >
                                       {(stage === 'primary' ? product.variantes! : product.variantesSecundarias!).map((v) => {
                                         const sel = (stage === 'primary' ? varianteSeleccionada : varianteSecundariaSeleccionada)?.id === v.id
+                                        const precioVariante = parseFloat(v.precio)
+                                        const varianteTienePrecioPropio = stage === 'secondary'
+                                          || precioVariante !== parseFloat(String(product.precio))
                                         return (
                                           <button
                                             key={v.id}
@@ -516,11 +519,13 @@ export function ProductDetailDrawer({ product, open, onClose, onAddToOrder, sibl
                                               {v.nombre}
                                             </span>
                                             <span className="flex items-center gap-2">
-                                              <span className={cn('text-[15px]', sel ? 'font-semibold text-primary' : 'text-muted-foreground')}>
-                                                {stage === 'secondary'
-                                                  ? (parseFloat(v.precio) > 0 ? `+$${parseFloat(v.precio).toFixed(2)}` : '')
-                                                  : `$${parseFloat(v.precio).toFixed(2)}`}
-                                              </span>
+                                              {varianteTienePrecioPropio && (
+                                                <span className={cn('text-[15px]', sel ? 'font-semibold text-primary' : 'text-muted-foreground')}>
+                                                  {stage === 'secondary'
+                                                    ? (precioVariante > 0 ? `+$${precioVariante.toFixed(2)}` : '')
+                                                    : `$${precioVariante.toFixed(2)}`}
+                                                </span>
+                                              )}
                                               {sel && <Check className="h-[18px] w-[18px] text-primary" />}
                                             </span>
                                           </button>
