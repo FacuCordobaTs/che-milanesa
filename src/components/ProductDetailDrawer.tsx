@@ -47,7 +47,7 @@ interface ProductDetailDrawerProps {
   product: Product | null
   open: boolean
   onClose: () => void
-  onAddToOrder: (product: Product, quantity: number, ingredientesExcluidos?: number[], agregados?: Agregado[], varianteSeleccionada?: Variante, varianteSecundariaSeleccionada?: Variante) => void
+  onAddToOrder: (product: Product, quantity: number, ingredientesExcluidos?: number[], agregados?: Agregado[], varianteSeleccionada?: Variante, varianteSecundariaSeleccionada?: Variante) => boolean | void
   /** Lista ordenada de productos "hermanos" navegables desde el detalle. Si tiene ≥2
    *  items, se puede pasar al producto anterior/siguiente sin cerrar el drawer. */
   siblings?: Product[]
@@ -113,8 +113,6 @@ export function ProductDetailDrawer({ product, open, onClose, onAddToOrder, sibl
   const [agregadosSeleccionados, setAgregadosSeleccionados] = useState<Agregado[]>([])
   const [varianteSeleccionada, setVarianteSeleccionada] = useState<Variante | null>(null)
   const [varianteSecundariaSeleccionada, setVarianteSecundariaSeleccionada] = useState<Variante | null>(null)
-  const [addCount, setAddCount] = useState(0)
-  const [showCounter, setShowCounter] = useState(false)
   // Dirección del último salto entre productos (alimenta la animación de deslizamiento).
   const [navDir, setNavDir] = useState(0)
 
@@ -126,8 +124,6 @@ export function ProductDetailDrawer({ product, open, onClose, onAddToOrder, sibl
       setVarianteSeleccionada(null)
       setVarianteSecundariaSeleccionada(null)
       setQuantity(1)
-      setAddCount(0)
-      setShowCounter(false)
     }
   }, [open, product?.id])
 
@@ -163,7 +159,7 @@ export function ProductDetailDrawer({ product, open, onClose, onAddToOrder, sibl
   const hasPrev = currentIndex > 0
   const hasNext = currentIndex >= 0 && currentIndex < lista.length - 1
   // Sólo se navega desde la etapa de selección (en "extras" el usuario está personalizando).
-  const puedeNavegar = stage === 'primary' && addCount === 0 && currentIndex >= 0 && lista.length > 1
+  const puedeNavegar = stage === 'primary' && currentIndex >= 0 && lista.length > 1
 
   const irA = (dir: number) => {
     if (!puedeNavegar) return
@@ -220,7 +216,7 @@ export function ProductDetailDrawer({ product, open, onClose, onAddToOrder, sibl
 
   const handleContinue = () => {
     if (variantBloqueada) return
-    if (addCount > 0 || stageIndex >= stages.length - 1) {
+    if (stageIndex >= stages.length - 1) {
       handleAdd()
     } else {
       setStage(stages[stageIndex + 1])
@@ -233,7 +229,7 @@ export function ProductDetailDrawer({ product, open, onClose, onAddToOrder, sibl
 
   const handleAdd = () => {
     if (!product) return
-    onAddToOrder(
+    const agregado = onAddToOrder(
       product,
       quantity,
       ingredientesExcluidos.length > 0 ? ingredientesExcluidos : undefined,
@@ -241,12 +237,10 @@ export function ProductDetailDrawer({ product, open, onClose, onAddToOrder, sibl
       varianteSeleccionada ?? undefined,
       varianteSecundariaSeleccionada ?? undefined
     )
-    const newCount = addCount + 1
-    setAddCount(newCount)
-    if (newCount >= 2) {
-      setShowCounter(true)
-      setTimeout(() => setShowCounter(false), 700)
-    }
+    // El padre cierra este detalle y abre el carrito tras un agregado exitoso.
+    // Si el producto no pudo agregarse (p. ej., canje sin puntos suficientes),
+    // se conserva el detalle abierto para que el cliente pueda corregirlo.
+    if (agregado === false) return
   }
 
   const handlePrimary = handleContinue
@@ -635,37 +629,13 @@ export function ProductDetailDrawer({ product, open, onClose, onAddToOrder, sibl
                           disabled={!isExtrasStage && variantBloqueada}
                           className={cn(
                             'relative h-14 min-w-0 flex-1 overflow-hidden rounded-2xl text-[17px] font-semibold transition-all duration-300 active:scale-[0.98]',
-                            addCount > 0
-                              ? 'bg-emerald-500 text-white'
-                              : !isExtrasStage && variantBloqueada
-                                ? 'bg-foreground/10 text-muted-foreground'
-                                : 'bg-primary text-primary-foreground'
+                            !isExtrasStage && variantBloqueada
+                              ? 'bg-foreground/10 text-muted-foreground'
+                              : 'bg-primary text-primary-foreground'
                           )}
                         >
                           <AnimatePresence mode="wait">
-                            {showCounter ? (
-                              <motion.span
-                                key={`x${addCount}`}
-                                initial={{ scale: 0.4, opacity: 0 }}
-                                animate={{ scale: 1.1, opacity: 1 }}
-                                exit={{ scale: 1.5, opacity: 0 }}
-                                transition={{ duration: 0.25 }}
-                                className="absolute inset-0 flex items-center justify-center text-2xl font-black"
-                              >
-                                x{addCount}
-                              </motion.span>
-                            ) : addCount > 0 ? (
-                              <motion.span
-                                key="repeat"
-                                initial={{ opacity: 0, y: 8 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0, y: -8 }}
-                                transition={{ duration: 0.2 }}
-                                className="absolute inset-0 flex items-center justify-center gap-2"
-                              >
-                                <Check className="h-5 w-5" /> Agregar otro igual
-                              </motion.span>
-                            ) : !isExtrasStage && variantBloqueada ? (
+                            {!isExtrasStage && variantBloqueada ? (
                               <motion.span
                                 key="blocked"
                                 initial={{ opacity: 0 }}
@@ -713,18 +683,6 @@ export function ProductDetailDrawer({ product, open, onClose, onAddToOrder, sibl
                           </button>
                         )}
                        </div>
-                        {addCount > 0 && (
-                          <motion.button
-                            type="button"
-                            onClick={onClose}
-                            initial={{ opacity: 0, y: 8 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ duration: 0.25 }}
-                            className="h-14 w-full rounded-2xl bg-secondary text-[17px] font-semibold text-foreground transition-all duration-300 active:scale-[0.98]"
-                          >
-                            Cerrar
-                          </motion.button>
-                        )}
                       </div>
                     </div>
                   </div>

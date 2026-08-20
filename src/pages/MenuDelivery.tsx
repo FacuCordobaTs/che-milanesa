@@ -369,7 +369,7 @@ const MenuDelivery = () => {
                 ? []
                 : productosFiltrados
 
-    const agregarAlPedido = (producto: any, cantidad: number = 1, ingredientesExcluidos?: number[], agregados?: any[], varianteSeleccionada?: any, varianteSecundariaSeleccionada?: any) => {
+    const agregarAlPedido = (producto: any, cantidad: number = 1, ingredientesExcluidos?: number[], agregados?: any[], varianteSeleccionada?: any, varianteSecundariaSeleccionada?: any): boolean => {
         let ingExNombres: string[] = []
         if (ingredientesExcluidos && ingredientesExcluidos.length > 0) {
             ingExNombres = producto.ingredientes
@@ -382,7 +382,7 @@ const MenuDelivery = () => {
             const puntosRestantes = (puntosCliente || 0) - puntosEnCarrito() - (producto.puntosNecesarios * cantidad);
             if (puntosRestantes < 0) {
                 toast.error('No tienes suficientes puntos para agregar este producto.');
-                return;
+                return false;
             }
         }
 
@@ -433,6 +433,7 @@ const MenuDelivery = () => {
         }
 
         bumpCart()
+        return true
     }
 
     const handleEliminarItem = (itemId: string) => {
@@ -1057,7 +1058,15 @@ const MenuDelivery = () => {
                 product={selectedProduct ? { ...selectedProduct, categoria: selectedProduct.categoria ?? undefined } : null}
                 open={drawerOpen}
                 onClose={cerrarProductoDrawer}
-                onAddToOrder={agregarAlPedido}
+                onAddToOrder={(...args) => {
+                    const agregado = agregarAlPedido(...args)
+                    if (!agregado) return false
+
+                    cerrarProductoDrawer()
+                    // Esperamos la animación de cierre antes de mostrar el drawer del carrito.
+                    window.setTimeout(abrirCarrito, 300)
+                    return true
+                }}
                 siblings={productosNavegables}
                 onNavigate={(p) => setSelectedProduct(p)}
             />
