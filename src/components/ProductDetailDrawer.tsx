@@ -13,6 +13,7 @@ interface Agregado {
   id: number
   nombre: string
   precio: string
+  grupo?: number
 }
 
 interface Variante {
@@ -30,8 +31,14 @@ interface Product {
   categoria?: string
   ingredientes?: Ingrediente[]
   agregados?: Agregado[]
+  agregadosPrimarios?: Agregado[]
+  agregadosSecundarios?: Agregado[]
   variantes?: Variante[]
   variantesSecundarias?: Variante[]
+  tituloVariantesPrimarias?: string
+  tituloVariantesSecundarias?: string
+  tituloExtrasPrimarios?: string
+  tituloExtrasSecundarios?: string
   descuento?: number | null
   descuentoFechaFin?: string | null
 }
@@ -97,8 +104,10 @@ const navVariants = {
 }
 
 
+type CustomizationStage = 'primary' | 'secondary' | 'extrasPrimary' | 'extrasSecondary'
+
 export function ProductDetailDrawer({ product, open, onClose, onAddToOrder, siblings, onNavigate }: ProductDetailDrawerProps) {
-  const [stage, setStage] = useState<'primary' | 'secondary' | 'extras'>('primary')
+  const [stage, setStage] = useState<CustomizationStage>('primary')
   const [quantity, setQuantity] = useState(1)
   const [ingredientesExcluidos, setIngredientesExcluidos] = useState<number[]>([])
   const [agregadosSeleccionados, setAgregadosSeleccionados] = useState<Agregado[]>([])
@@ -123,10 +132,28 @@ export function ProductDetailDrawer({ product, open, onClose, onAddToOrder, sibl
   }, [open, product?.id])
 
   const tieneIngredientes = !!(product?.ingredientes && product.ingredientes.length > 0)
-  const tieneAgregados = !!(product?.agregados && product.agregados.length > 0)
+  const agregadosPrimarios = product?.agregadosPrimarios
+    ?? product?.agregados?.filter(a => (a.grupo ?? 1) === 1)
+    ?? []
+  const agregadosSecundarios = product?.agregadosSecundarios
+    ?? product?.agregados?.filter(a => a.grupo === 2)
+    ?? []
+  const tieneAgregadosPrimarios = agregadosPrimarios.length > 0
+  const tieneAgregadosSecundarios = agregadosSecundarios.length > 0
   const tieneVariantes = !!(product?.variantes && product.variantes.length > 0)
   const tieneVariantesSecundarias = !!(product?.variantesSecundarias && product.variantesSecundarias.length > 0)
-  const needsStage2 = tieneIngredientes || tieneAgregados
+  const stages: CustomizationStage[] = [
+    'primary',
+    ...(tieneVariantesSecundarias ? ['secondary' as const] : []),
+    ...(tieneIngredientes || tieneAgregadosPrimarios ? ['extrasPrimary' as const] : []),
+    ...(tieneAgregadosSecundarios ? ['extrasSecondary' as const] : []),
+  ]
+  const stageIndex = stages.indexOf(stage)
+  const isExtrasStage = stage === 'extrasPrimary' || stage === 'extrasSecondary'
+  const currentExtras = stage === 'extrasSecondary' ? agregadosSecundarios : agregadosPrimarios
+  const currentExtrasTitle = stage === 'extrasSecondary'
+    ? (product?.tituloExtrasSecundarios || 'Extras')
+    : (product?.tituloExtrasPrimarios || 'Extras')
   // Producto sin foto → diseño plano (espeja el card text-only del menú).
   const sinImagen = !product?.imagenUrl
 
@@ -193,13 +220,15 @@ export function ProductDetailDrawer({ product, open, onClose, onAddToOrder, sibl
 
   const handleContinue = () => {
     if (variantBloqueada) return
-    if (stage === 'primary' && tieneVariantesSecundarias) {
-      setStage('secondary')
-    } else if (addCount > 0 || !needsStage2) {
+    if (addCount > 0 || stageIndex >= stages.length - 1) {
       handleAdd()
     } else {
-      setStage('extras')
+      setStage(stages[stageIndex + 1])
     }
+  }
+
+  const handleBack = () => {
+    if (stageIndex > 0) setStage(stages[stageIndex - 1])
   }
 
   const handleAdd = () => {
@@ -220,7 +249,7 @@ export function ProductDetailDrawer({ product, open, onClose, onAddToOrder, sibl
     }
   }
 
-  const handlePrimary = () => (stage === 'extras' ? handleAdd() : handleContinue())
+  const handlePrimary = handleContinue
 
   const timeLeft = tieneDescuento ? formatTimeLeft(product?.descuentoFechaFin ?? null) : null
 
@@ -242,8 +271,8 @@ export function ProductDetailDrawer({ product, open, onClose, onAddToOrder, sibl
   )
 
   // Etapa 2: crece para mostrar ingredientes + extras, con techo en 90vh (scroll interno)
-  const extrasRows = (tieneIngredientes ? product!.ingredientes!.length : 0) + (tieneAgregados ? product!.agregados!.length : 0)
-  const extrasLabels = (tieneIngredientes ? 1 : 0) + (tieneAgregados ? 1 : 0)
+  const extrasRows = (stage === 'extrasPrimary' && tieneIngredientes ? product!.ingredientes!.length : 0) + currentExtras.length
+  const extrasLabels = (stage === 'extrasPrimary' && tieneIngredientes ? 1 : 0) + (currentExtras.length > 0 ? 1 : 0)
   const stage2Height = Math.min(
     stage2Base + extrasLabels * LABEL_H + extrasRows * ROW_H,
     Math.round(vh * 0.9)
@@ -253,7 +282,7 @@ export function ProductDetailDrawer({ product, open, onClose, onAddToOrder, sibl
     stage1Base + LABEL_H + Math.max(1, Math.min(secondaryVariantCount, MAX_VISIBLE_VARIANTS)) * ROW_H,
     Math.round(vh * 0.85)
   )
-  const drawerHeight = stage === 'extras' ? stage2Height : stage === 'secondary' ? secondaryHeight : stage1Height
+  const drawerHeight = isExtrasStage ? stage2Height : stage === 'secondary' ? secondaryHeight : stage1Height
 
   const rowBtn = 'flex items-center justify-between rounded-2xl px-4 py-3.5 text-left transition-colors'
   // Flechas de navegación que flanquean el botón principal — mismo alto/redondeo que el
@@ -336,7 +365,7 @@ export function ProductDetailDrawer({ product, open, onClose, onAddToOrder, sibl
                       <motion.button
                         key="back"
                         type="button"
-                        onClick={() => setStage(stage === 'extras' && tieneVariantesSecundarias ? 'secondary' : 'primary')}
+                        onClick={handleBack}
                         initial={{ opacity: 0, scale: 0.8 }}
                         animate={{ opacity: 1, scale: 1 }}
                         exit={{ opacity: 0, scale: 0.8 }}
@@ -374,7 +403,7 @@ export function ProductDetailDrawer({ product, open, onClose, onAddToOrder, sibl
                               <motion.button
                                 key="back-flat"
                                 type="button"
-                                onClick={() => setStage(stage === 'extras' && tieneVariantesSecundarias ? 'secondary' : 'primary')}
+                                onClick={handleBack}
                                 initial={{ opacity: 0, scale: 0.8 }}
                                 animate={{ opacity: 1, scale: 1 }}
                                 exit={{ opacity: 0, scale: 0.8 }}
@@ -455,7 +484,7 @@ export function ProductDetailDrawer({ product, open, onClose, onAddToOrder, sibl
                       {/* Área animada — misma posición y misma lógica de scroll en ambas etapas */}
                       <div className="relative min-h-0 flex-1">
                         <AnimatePresence initial={false}>
-                          {stage !== 'extras' ? (
+                          {!isExtrasStage ? (
                             <motion.div
                               key={`content-${stage}`}
                               initial={{ opacity: 0, x: -40 }}
@@ -472,7 +501,9 @@ export function ProductDetailDrawer({ product, open, onClose, onAddToOrder, sibl
                                 {((stage === 'primary' && tieneVariantes) || (stage === 'secondary' && tieneVariantesSecundarias)) && (
                                   <div className="space-y-1">
                                     <p className="px-1 pb-1 text-[13px] font-medium text-muted-foreground">
-                                      {stage === 'primary' ? 'Elegí una opción' : 'Elegí también una segunda opción'}
+                                      {stage === 'primary'
+                                        ? (product.tituloVariantesPrimarias || 'Elegí una opción')
+                                        : (product.tituloVariantesSecundarias || 'Elegí también una segunda opción')}
                                     </p>
                                     <div
                                       className="flex flex-col gap-0.5 overflow-y-auto overscroll-contain"
@@ -508,7 +539,7 @@ export function ProductDetailDrawer({ product, open, onClose, onAddToOrder, sibl
                             </motion.div>
                           ) : (
                             <motion.div
-                              key="content-extras"
+                              key={`content-${stage}`}
                               initial={{ opacity: 0, x: 40 }}
                               animate={{ opacity: 1, x: 0 }}
                               exit={{ opacity: 0, x: 40 }}
@@ -516,7 +547,7 @@ export function ProductDetailDrawer({ product, open, onClose, onAddToOrder, sibl
                               className="absolute inset-0 flex flex-col"
                             >
                               <div className="min-h-0 flex-1 space-y-7 overflow-y-auto overscroll-contain px-6 pb-4 pt-6">
-                                {tieneIngredientes && (
+                                {stage === 'extrasPrimary' && tieneIngredientes && (
                                   <div className="space-y-1">
                                     <p className="px-1 pb-1 text-lg font-bold text-foreground">
                                       Ingredientes
@@ -547,13 +578,13 @@ export function ProductDetailDrawer({ product, open, onClose, onAddToOrder, sibl
                                   </div>
                                 )}
 
-                                {tieneAgregados && (
+                                {currentExtras.length > 0 && (
                                   <div className="space-y-1">
                                     <p className="px-1 pb-1 text-lg font-bold text-foreground">
-                                      Extras
+                                      {currentExtrasTitle}
                                     </p>
                                     <div className="flex flex-col gap-0.5">
-                                      {product.agregados!.map((ag) => {
+                                      {currentExtras.map((ag) => {
                                         const sel = !!agregadosSeleccionados.find(a => a.id === ag.id)
                                         return (
                                           <button
@@ -601,12 +632,12 @@ export function ProductDetailDrawer({ product, open, onClose, onAddToOrder, sibl
                         <button
                           type="button"
                           onClick={handlePrimary}
-                          disabled={stage !== 'extras' && variantBloqueada}
+                          disabled={!isExtrasStage && variantBloqueada}
                           className={cn(
                             'relative h-14 min-w-0 flex-1 overflow-hidden rounded-2xl text-[17px] font-semibold transition-all duration-300 active:scale-[0.98]',
                             addCount > 0
                               ? 'bg-emerald-500 text-white'
-                              : stage !== 'extras' && variantBloqueada
+                              : !isExtrasStage && variantBloqueada
                                 ? 'bg-foreground/10 text-muted-foreground'
                                 : 'bg-primary text-primary-foreground'
                           )}
@@ -634,7 +665,7 @@ export function ProductDetailDrawer({ product, open, onClose, onAddToOrder, sibl
                               >
                                 <Check className="h-5 w-5" /> Agregar otro igual
                               </motion.span>
-                            ) : stage !== 'extras' && variantBloqueada ? (
+                            ) : !isExtrasStage && variantBloqueada ? (
                               <motion.span
                                 key="blocked"
                                 initial={{ opacity: 0 }}
@@ -643,22 +674,13 @@ export function ProductDetailDrawer({ product, open, onClose, onAddToOrder, sibl
                                 transition={{ duration: 0.2 }}
                                 className="absolute inset-0 flex items-center justify-center"
                               >
-                                Elegí una opción
+                                {stage === 'secondary'
+                                  ? (product.tituloVariantesSecundarias || 'Elegí también una segunda opción')
+                                  : (product.tituloVariantesPrimarias || 'Elegí una opción')}
                               </motion.span>
-                            ) : stage === 'primary' && (tieneVariantesSecundarias || needsStage2) ? (
+                            ) : stageIndex < stages.length - 1 ? (
                               <motion.span
                                 key="continue"
-                                initial={{ opacity: 0, y: 8 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0, y: -8 }}
-                                transition={{ duration: 0.2 }}
-                                className="absolute inset-0 flex items-center justify-center"
-                              >
-                                Continuar
-                              </motion.span>
-                            ) : stage === 'secondary' && needsStage2 ? (
-                              <motion.span
-                                key="continue-secondary"
                                 initial={{ opacity: 0, y: 8 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 exit={{ opacity: 0, y: -8 }}
