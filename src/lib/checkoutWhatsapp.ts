@@ -57,7 +57,6 @@ export async function redirectPedidoAlWhatsapp(
 
     const message = buildWhatsappOrderMessage(completedOrderInfo, {
         restaurantName: restaurante?.nombre,
-        restaurantDireccion: restaurante?.direccion,
         effectiveMetodo,
         transferenciaAlias: transferenciaAliasDestino?.trim() || restaurante?.transferenciaAlias,
     })

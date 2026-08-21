@@ -377,7 +377,6 @@ const SuccessDelivery = () => {
         ? `https://wa.me/${whatsappDigits}?text=${encodeURIComponent(
             buildWhatsappOrderMessage(orderInfo, {
                 restaurantName: restauranteData?.nombre,
-                restaurantDireccion: restauranteData?.direccion,
                 effectiveMetodo,
                 transferenciaAlias,
             })

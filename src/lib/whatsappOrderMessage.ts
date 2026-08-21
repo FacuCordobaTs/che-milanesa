@@ -8,11 +8,10 @@ import { orderItemDisplayName, parseAgregadosList, orderItemLineSubtotalSession 
  *
  * Incluye: productos (con ingredientes quitados y extras), subtotal, envío,
  * descuento, total, método de pago (alias si se eligió transferencia), y la
- * dirección de delivery o el retiro en el local. Nunca incluye el teléfono.
+ * dirección de delivery o el aviso de retiro en el local. Nunca incluye el teléfono.
  */
 type BuildArgs = {
     restaurantName?: string | null
-    restaurantDireccion?: string | null
     /** Método normalizado (getEffectiveMetodo): cash | manual_transfer | transferencia_automatica_* | mercadopago_* */
     effectiveMetodo: string
     /** Alias fijo del local (para transferencia manual). */
@@ -67,7 +66,7 @@ function paymentLine(orderInfo: any, effectiveMetodo: string, transferenciaAlias
 }
 
 export function buildWhatsappOrderMessage(orderInfo: any, args: BuildArgs): string {
-    const { restaurantName, restaurantDireccion, effectiveMetodo, transferenciaAlias } = args
+    const { restaurantName, effectiveMetodo, transferenciaAlias } = args
     const items: any[] = Array.isArray(orderInfo?.items) ? orderInfo.items : []
     const esDelivery = orderInfo?.tipoPedido === 'delivery'
 
@@ -134,8 +133,9 @@ export function buildWhatsappOrderMessage(orderInfo: any, args: BuildArgs): stri
         L.push(`*${EMOJI.delivery} Entrega:* Delivery`)
         if (orderInfo?.direccion) L.push(`${EMOJI.ubicacion} ${orderInfo.direccion}`)
     } else {
-        L.push(`*${EMOJI.retiro} Retiro en el local*`)
-        if (restaurantDireccion) L.push(`${EMOJI.ubicacion} ${restaurantDireccion}`)
+        // El WhatsApp ya se envía al número de la sucursal seleccionada. No
+        // repetimos una dirección aquí porque puede no coincidir con ese destino.
+        L.push(`${EMOJI.retiro} Retira en el local`)
     }
     if (orderInfo?.horarioProgramado) L.push(`${EMOJI.horario} Programado: ${orderInfo.horarioProgramado}`)
 
