@@ -804,6 +804,7 @@ const MenuDelivery = () => {
                                                     key={producto.id}
                                                     producto={producto}
                                                     onClick={() => abrirDetalleProducto(producto)}
+                                                    esPromocion={esCategoriaPromociones(categoriaNombre)}
                                                     fullWidth
                                                 />
                                             ))}
@@ -841,6 +842,7 @@ const MenuDelivery = () => {
                                             key={producto.id}
                                             producto={producto}
                                             onClick={() => abrirDetalleProducto(producto)}
+                                            esPromocion={esCategoriaPromociones(selectedCategory)}
                                             fullWidth
                                         />
                                     ))}
@@ -1171,7 +1173,7 @@ const EmptyState = () => (
 )
 
 
-const ProductoCard = ({ producto, onClick, fullWidth }: { producto: any, onClick: () => void, fullWidth?: boolean }) => {
+const ProductoCard = ({ producto, onClick, fullWidth, esPromocion = false }: { producto: any, onClick: () => void, fullWidth?: boolean, esPromocion?: boolean }) => {
     const tieneDescuento = !!(producto.descuento && producto.descuento > 0)
     const precioOriginal = parseFloat(producto.precio)
     const precioFinal = tieneDescuento ? precioOriginal * (1 - producto.descuento / 100) : precioOriginal
@@ -1204,7 +1206,7 @@ const ProductoCard = ({ producto, onClick, fullWidth }: { producto: any, onClick
                 </div>
 
                 <div className="mt-4 flex items-end gap-1.5">
-                    <span className={`font-black text-[18px] ${tieneDescuento ? 'text-emerald-600 dark:text-emerald-400' : 'text-primary'}`}>
+                    <span className={`font-black text-[18px] ${esPromocion ? 'text-yellow-500 dark:text-yellow-400' : tieneDescuento ? 'text-emerald-600 dark:text-emerald-400' : 'text-primary'}`}>
                         ${precioFinal.toFixed(0)}
                     </span>
                     {tieneDescuento && (
@@ -1259,7 +1261,7 @@ const ProductoCard = ({ producto, onClick, fullWidth }: { producto: any, onClick
                 </div>
 
                 <div className="flex items-baseline gap-1.5 mt-2">
-                    <span className={`font-black text-[17px] ${tieneDescuento ? 'text-emerald-600 dark:text-emerald-400' : 'text-primary'}`}>
+                    <span className={`font-black text-[17px] ${esPromocion ? 'text-yellow-500 dark:text-yellow-400' : tieneDescuento ? 'text-emerald-600 dark:text-emerald-400' : 'text-primary'}`}>
                         ${precioFinal.toFixed(0)}
                     </span>
                     {tieneDescuento && (
