@@ -51,6 +51,10 @@ function checkIsOpen(horarios: HorarioTurno[]): { abierto: boolean; proximaApert
   return { abierto: false, proximaApertura: mejor?.texto || null }
 }
 
+// Categoría destacada de promociones: se hardcodea su estilo (amarillo y más grande).
+const CATEGORIA_PROMOCIONES = 'promociones de la semana'
+const esCategoriaPromociones = (nombre: string) => nombre.trim().toLowerCase() === CATEGORIA_PROMOCIONES
+
 const Menu = () => {
   const navigate = useNavigate()
   const { qrToken: urlQrToken } = useParams<{ qrToken?: string }>()
@@ -655,18 +659,18 @@ const Menu = () => {
                 if (!productosDeCategoria || productosDeCategoria.length === 0) return null
                 return (
                   <div key={categoriaNombre} className="space-y-4">
-                    <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider px-1">
+                    <h3 className={`uppercase tracking-wider px-1 ${esCategoriaPromociones(categoriaNombre) ? 'text-xl font-extrabold text-yellow-500 dark:text-yellow-400' : 'text-sm font-semibold text-muted-foreground'}`}>
                       {categoriaNombre}
                     </h3>
-                    <div className="flex gap-4 overflow-x-auto pb-3 ml-2 scrollbar-hide snap-x snap-mandatory lg:grid lg:grid-cols-3 xl:grid-cols-4 lg:gap-5 lg:ml-0 lg:pb-0 lg:overflow-visible lg:snap-none">
+                    <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 px-1">
                       {productosDeCategoria.map((producto) => (
                         <ProductoCard
                           key={producto.id}
                           producto={producto}
                           onClick={() => abrirDetalleProducto(producto)}
+                          fullWidth
                         />
                       ))}
-                      <div className="min-w-1 shrink-0 lg:hidden" />
                     </div>
                   </div>
                 )
@@ -677,10 +681,10 @@ const Menu = () => {
           ) : (
             productosFiltrados.length > 0 ? (
               <div className="space-y-4">
-                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider px-1">
+                <h3 className={`uppercase tracking-wider px-1 ${esCategoriaPromociones(selectedCategory) ? 'text-xl font-extrabold text-yellow-500 dark:text-yellow-400' : 'text-sm font-semibold text-muted-foreground'}`}>
                   {selectedCategory}
                 </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 px-1">
+                <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 px-1">
                   {productosFiltrados.map((producto) => (
                     <ProductoCard
                       key={producto.id}
