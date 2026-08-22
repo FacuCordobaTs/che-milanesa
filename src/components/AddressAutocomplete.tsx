@@ -14,8 +14,27 @@ interface AddressAutocompleteProps {
     biasLocations?: Array<{ lat: number; lng: number }>
 }
 
+/**
+ * Google puede devolver la misma localidad como "Santa Fe", "Santa Fe de la
+ * Vera Cruz" o precedida por el CPA (por ejemplo, "S3000FRX"). El CPA identifica
+ * una zona/manzana, no una ciudad, por lo que no debe formar parte del filtro.
+ */
+function cleanCity(value: string): string {
+    return value
+        .replace(/\b[A-Za-z]?\d{4}[A-Za-z0-9]{0,3}\b/gi, '')
+        .replace(/\s{2,}/g, ' ')
+        .trim()
+}
+
 function normalizeCity(value: string): string {
-    return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase()
+    const normalized = cleanCity(value)
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .trim()
+        .toLowerCase()
+
+    // Google usa ambas denominaciones para la ciudad según el resultado.
+    return normalized === 'santa fe de la vera cruz' ? 'santa fe' : normalized
 }
 
 function extractCity(components: google.maps.GeocoderAddressComponent[] | undefined): string | null {
@@ -69,7 +88,13 @@ export function AddressAutocomplete({
 
         const autocomplete = new google.maps.places.Autocomplete(inputRef.current, options)
 
-        const uniqueCities = Array.from(new Set(allowedCities.map((city) => city.trim()).filter(Boolean)))
+        // Deduplicar por la forma normalizada: "Santa Fe" y "Santa Fe de la
+        // Vera Cruz" son un único límite, no dos ciudades diferentes.
+        const uniqueCities = Array.from(new Map(
+            allowedCities
+                .map((city) => [normalizeCity(city), cleanCity(city)] as const)
+                .filter(([normalized]) => Boolean(normalized)),
+        ).values())
         if (uniqueCities.length === 1) {
             const geocoder = new google.maps.Geocoder()
             void geocoder.geocode({ address: `${uniqueCities[0]}, Argentina` }).then(({ results }) => {
@@ -90,12 +115,12 @@ export function AddressAutocomplete({
                 const lng = place.geometry.location.lng()
                 const formattedAddress = place.formatted_address || ''
                 const city = extractCity(place.address_components)
-                const allowed = new Set(allowedCities.map(normalizeCity))
+                const allowed = new Set(allowedCities.map(normalizeCity).filter(Boolean))
 
                 if (allowed.size > 0 && (!city || !allowed.has(normalizeCity(city)))) {
                     setInternalValue(formattedAddress)
                     setHasSelectedPlace(false)
-                    setCityError(`Elegí una dirección de ${allowedCities.join(' o ')}`)
+                    setCityError(`Elegí una dirección de ${uniqueCities.join(' o ')}`)
                     stableOnChange(formattedAddress, null, null)
                     return
                 }
