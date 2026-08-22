@@ -46,6 +46,17 @@ function extractCity(components: google.maps.GeocoderAddressComponent[] | undefi
     return null
 }
 
+function addressMatchesAllowedCity(formattedAddress: string, allowed: Set<string>): boolean {
+    // En algunos resultados argentinos Google separa el CPA extendido como
+    // "S3000 DHF" y etiqueta "DHF" como locality. La dirección formateada sí
+    // conserva la localidad real en el segmento siguiente, por eso se revisan
+    // también las partes delimitadas por coma.
+    return formattedAddress
+        .split(',')
+        .map(normalizeCity)
+        .some((part) => part !== '' && allowed.has(part))
+}
+
 export function AddressAutocomplete({
     value,
     onChange,
@@ -117,7 +128,10 @@ export function AddressAutocomplete({
                 const city = extractCity(place.address_components)
                 const allowed = new Set(allowedCities.map(normalizeCity).filter(Boolean))
 
-                if (allowed.size > 0 && (!city || !allowed.has(normalizeCity(city)))) {
+                const cityMatches = city != null && allowed.has(normalizeCity(city))
+                const addressMatches = addressMatchesAllowedCity(formattedAddress, allowed)
+
+                if (allowed.size > 0 && !cityMatches && !addressMatches) {
                     setInternalValue(formattedAddress)
                     setHasSelectedPlace(false)
                     setCityError(`Elegí una dirección de ${uniqueCities.join(' o ')}`)
