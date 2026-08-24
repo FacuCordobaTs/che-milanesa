@@ -143,6 +143,7 @@ const MenuDelivery = () => {
     const [submittingOrder, setSubmittingOrder] = useState(false)
     const checkoutDataRef = useRef<any>(null)
     const isSubmittingRef = useRef(false)
+    const orderAttemptIdRef = useRef<string | null>(null)
 
     // Function to fetch points
     const fetchPuntos = useCallback(async (telefono: string, restauranteId: number) => {
@@ -480,6 +481,7 @@ const MenuDelivery = () => {
         }
 
         setSubmittingOrder(true)
+        let pedidoCreado = false
         try {
             const url = import.meta.env.VITE_API_URL || 'http://localhost:3000/api'
             const tipoPedido = data.tipoPedido as 'delivery' | 'takeaway'
@@ -511,11 +513,16 @@ const MenuDelivery = () => {
             if (data.horarioProgramado) payload.horarioProgramado = data.horarioProgramado
             const res = await fetch(`${url}${endpoint}`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Idempotency-Key': orderAttemptIdRef.current ??=
+                        `${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}_${Math.random().toString(36).slice(2)}`,
+                },
                 body: JSON.stringify(payload)
             })
             const result = await res.json()
             if (result.success) {
+                pedidoCreado = true
                 localStorage.setItem('cliente_nombre', data.nombre)
                 localStorage.setItem('cliente_telefono', data.telefono)
                 if (tipoPedido === 'delivery') {
@@ -565,8 +572,10 @@ const MenuDelivery = () => {
         } catch {
             toast.error('Ocurrió un error al enviar el pedido')
         } finally {
-            setSubmittingOrder(false)
-            isSubmittingRef.current = false
+            if (!pedidoCreado) {
+                setSubmittingOrder(false)
+                isSubmittingRef.current = false
+            }
         }
     }, [restaurante, username, cartItems, navigate, horarios])
 
@@ -576,6 +585,7 @@ const MenuDelivery = () => {
         } else if (msg.type === 'CANCELAR_EDICION_CHECKOUT') {
             setEditSemaphoreLocal(null)
         } else if (msg.type === 'MODIFICAR_CHECKOUT') {
+            orderAttemptIdRef.current = null
             checkoutDataRef.current = msg.payload.updates
             setCheckoutDeliveryData(msg.payload.updates)
         } else if (msg.type === 'ACEPTAR_EDICION_CHECKOUT') {
@@ -954,6 +964,7 @@ const MenuDelivery = () => {
                             onTituloChange={setTituloCheckout}
                             labelGuardar={restaurante?.avisosWhatsappClienteEnabled === false ? 'Enviar pedido al WhatsApp' : 'Confirmar y pedir'}
                             enviarPedidoWhatsapp={restaurante?.avisosWhatsappClienteEnabled === false}
+                            submittingOrder={submittingOrder}
                             localCerrado={!estadoAbierto.abierto || !!restaurante?.pausadoPorSuscripcion}
                         />
                     ) : cartItems.length === 0 ? (

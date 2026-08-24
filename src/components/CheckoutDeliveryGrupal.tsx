@@ -38,6 +38,8 @@ interface CheckoutDeliveryGrupalProps {
   localCerrado?: boolean
   /** Sin Avisos automáticos, el cliente debe enviar el pedido desde su WhatsApp. */
   enviarPedidoWhatsapp?: boolean
+  /** Bloquea toda confirmación mientras el alta del pedido está en curso. */
+  submittingOrder?: boolean
 }
 
 export function CheckoutDeliveryGrupal({
@@ -58,6 +60,7 @@ export function CheckoutDeliveryGrupal({
   labelGuardar,
   localCerrado = false,
   enviarPedidoWhatsapp = false,
+  submittingOrder = false,
 }: CheckoutDeliveryGrupalProps) {
   const [tipoPedido, setTipoPedido] = useState<'delivery' | 'takeaway'>(checkoutData?.tipoPedido || 'delivery')
   const [nombre, setNombre] = useState(checkoutData?.nombre || localStorage.getItem('cliente_nombre') || '')
@@ -277,6 +280,7 @@ export function CheckoutDeliveryGrupal({
   }
 
   const handleGuardarEdicion = () => {
+    if (submittingOrder) return
     if (tipoPedido === 'delivery' && (!nombre.trim() || !telefono.trim() || !direccion.trim())) {
       toast.error('Completa nombre, celular y dirección')
       return
@@ -348,6 +352,7 @@ export function CheckoutDeliveryGrupal({
   }
 
   const handleConfirmarPedido = () => {
+    if (submittingOrder) return
     if (!checkoutData) {
       toast.error('Completa los datos de envío antes de confirmar')
       return
@@ -928,7 +933,7 @@ export function CheckoutDeliveryGrupal({
       <Button
         className={`w-full h-12 rounded-2xl font-bold text-base ${enviarPedidoWhatsapp && esUltimo ? 'bg-green-600 hover:bg-green-700 text-white' : ''}`}
         onClick={modo === 'pasos' ? handleSiguiente : handleGuardarEdicion}
-        disabled={accionDisabled}
+        disabled={accionDisabled || submittingOrder}
       >
         {enviarPedidoWhatsapp && esUltimo && <MessageCircle className="w-5 h-5 mr-2" />}
         {modo === 'pasos' && !esUltimo ? 'Siguiente' : (labelGuardar || 'Guardar datos')}
@@ -936,9 +941,9 @@ export function CheckoutDeliveryGrupal({
     )
   } else if (checkoutData) {
     footerButton = datosCompletos ? (
-      <Button className={`w-full h-12 rounded-2xl font-bold text-base ${enviarPedidoWhatsapp ? 'bg-green-600 hover:bg-green-700 text-white' : ''}`} onClick={handleConfirmarPedido}>
-        {enviarPedidoWhatsapp && <MessageCircle className="w-5 h-5 mr-2" />}
-        {enviarPedidoWhatsapp ? 'Enviar pedido al WhatsApp' : 'Confirmar Pedido'}
+      <Button disabled={submittingOrder} className={`w-full h-12 rounded-2xl font-bold text-base ${enviarPedidoWhatsapp ? 'bg-green-600 hover:bg-green-700 text-white' : ''}`} onClick={handleConfirmarPedido}>
+        {submittingOrder ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : enviarPedidoWhatsapp && <MessageCircle className="w-5 h-5 mr-2" />}
+        {submittingOrder ? 'Enviando pedido...' : enviarPedidoWhatsapp ? 'Enviar pedido al WhatsApp' : 'Confirmar Pedido'}
       </Button>
     ) : (
       <p className="text-xs text-muted-foreground text-center py-2">Esperando que se completen los datos...</p>
