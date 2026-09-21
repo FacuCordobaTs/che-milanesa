@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -12,6 +12,7 @@ import { ArrowLeft, Loader2, MapPin, Store, Zap, Truck, AlertTriangle, Package, 
 import { AddressAutocomplete } from '@/components/AddressAutocomplete'
 import { AddressMapPreview } from '@/components/AddressMapPreview'
 import { MisPedidosDrawer } from '@/components/MisPedidosDrawer'
+import { configurarGtm, contextoParaPedidoMarketing, registrarEventoTrackingUnaVez } from '@/lib/tracking'
 
 type MetodoPublico = { id: string; label: string; automatico: boolean }
 type HorarioTurno = { diaSemana: number; horaApertura: string; horaCierre: string }
@@ -76,6 +77,7 @@ const CheckoutDelivery = () => {
     const [isLoadingRestaurante, setIsLoadingRestaurante] = useState(true)
     const [misPedidosOpen, setMisPedidosOpen] = useState(false)
     const codigoDescuentoEnabled = restauranteData?.codigoDescuentoEnabled === true
+    const checkoutStartRef = useRef<string | null>(null)
 
     const [codigoInput, setCodigoInput] = useState('')
     const [codigoDescuentoId, setCodigoDescuentoId] = useState<number | null>(null)
@@ -94,9 +96,18 @@ const CheckoutDelivery = () => {
                 const data = await response.json()
                 if (data.success && data.data.restaurante) {
                     const r = data.data.restaurante
+                    configurarGtm(r.gtmContainerId)
                     const methods: MetodoPublico[] = Array.isArray(r.metodosPago) ? r.metodosPago : []
                     setAvailablePaymentMethods(methods)
                     setRestauranteData(r)
+                    if (cart?.restauranteId) {
+                        const key = `${cart.restauranteId}:${username}`
+                        if (checkoutStartRef.current !== key) {
+                            checkoutStartRef.current = key
+                            registrarEventoTrackingUnaVez(cart.restauranteId, username, 'session_start', 'storefront')
+                            registrarEventoTrackingUnaVez(cart.restauranteId, username, 'checkout_start', 'checkout-route', { valor: cart.items?.reduce((sum: number, item: any) => sum + parseFloat(item.precio) * item.cantidad, 0) || 0 })
+                        }
+                    }
 
                     // Calcular si el restaurante está abierto
                     const horarios: HorarioTurno[] = Array.isArray(data.data.horarios) ? data.data.horarios : []
@@ -122,7 +133,7 @@ const CheckoutDelivery = () => {
             }
         }
         if (username) fetchRestaurante()
-    }, [username])
+    }, [username, cart?.restauranteId])
 
     useEffect(() => {
         const savedCart = localStorage.getItem(`deliveryCart_${username}`)
@@ -311,6 +322,7 @@ const CheckoutDelivery = () => {
                     esCanjePuntos: i.esCanjePuntos || false
                 }))
             }
+            Object.assign(payload, contextoParaPedidoMarketing(username))
 
             payload.metodoPago = metodoPago
             if (codigoDescuentoId) {
@@ -334,6 +346,7 @@ const CheckoutDelivery = () => {
 
             const data = await res.json()
             if (data.success) {
+                registrarEventoTrackingUnaVez(cart.restauranteId, username, 'purchase', `pedido-${data.data.id}`, { pedidoUnificadoId: data.data.id, valor: data.data.total ? parseFloat(data.data.total) : total, items: cart.items, metadata: { tipoPedido, cantidadItems: cart.items.length } })
                 // Save client info for future purchases
                 localStorage.setItem('cliente_nombre', nombre)
                 localStorage.setItem('cliente_telefono', telefono)

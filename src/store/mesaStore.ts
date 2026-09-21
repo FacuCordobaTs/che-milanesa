@@ -43,6 +43,11 @@ export interface CheckoutDeliveryData {
   horarioProgramado?: string
   sucursalId?: number | null
   tipoDomicilio?: 'casa' | 'departamento' | null
+  visitorId?: string
+  sesionUuid?: string
+  campaniaSlug?: string
+  recetaToken?: string
+  trackingClienteId?: string
 }
 
 export interface CheckoutEditSemaphore {

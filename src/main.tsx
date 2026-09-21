@@ -19,8 +19,10 @@ import CheckoutDelivery from './pages/CheckoutDelivery'
 import SuccessDelivery from './pages/SuccessDelivery'
 import SuccessGrupal from './pages/SuccessGrupal'
 import PedidoStatus from './pages/PedidoStatus'
+import { TrackingBootstrap } from './components/TrackingBootstrap'
+import { CampanaLinkResolver, RecetaLinkResolver } from './pages/MarketingLinkResolver'
 
-const router = createBrowserRouter([
+const rutas = [
   {
     path: "/",
     element: <MenuDelivery />,
@@ -107,7 +109,10 @@ const router = createBrowserRouter([
     path: "/success",
     element: <SuccessDelivery />,
   },
-]);
+  { path: "/c/:slug", element: <CampanaLinkResolver /> },
+  { path: "/r/:token", element: <RecetaLinkResolver /> },
+]
+const router = createBrowserRouter([{ element: <TrackingBootstrap />, children: rutas }])
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
