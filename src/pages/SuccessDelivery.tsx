@@ -8,6 +8,7 @@ import { leerTemaRestaurante, RestauranteTheme } from '@/components/RestauranteT
 import { OrderSummaryItemDetails } from '@/components/OrderSummaryItemDetails'
 import { orderItemLineSubtotalSession } from '@/lib/orderSummaryItem'
 import { buildWhatsappOrderMessage } from '@/lib/whatsappOrderMessage'
+import { configurarGtm, configurarMetaPixel } from '@/lib/tracking'
 import { initMercadoPago, CardPayment } from '@mercadopago/sdk-react'
 
 const MP_CHECKOUT_LAUNCHED_KEY = 'mpCheckoutLaunchedPedidoId'
@@ -88,6 +89,12 @@ const SuccessDelivery = () => {
                 const response = await fetch(`${url}/public/restaurante/${username}`)
                 const data = await response.json()
                 if (data.success && data.data.restaurante) {
+                    // Va acá y no en un efecto: en el camino de efectivo el estado pasa a
+                    // `confirmed` en este mismo bloque, y el efecto de compra corre antes
+                    // que cualquier efecto declarado después. Sin el pixel ya inicializado,
+                    // ese `Purchase` se pierde en silencio.
+                    configurarGtm(data.data.restaurante.gtmContainerId)
+                    configurarMetaPixel(data.data.restaurante.metaPixelId)
                     setTransferenciaAlias(data.data.restaurante.transferenciaAlias)
                     setRestauranteData(data.data.restaurante)
                     const savedInfo = JSON.parse(sessionStorage.getItem('deliveryOrderInfo') || '{}')

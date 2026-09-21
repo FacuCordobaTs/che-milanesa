@@ -17,7 +17,7 @@ import { guardarTemaRestaurante, leerTemaRestaurante, RestauranteTheme } from '@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { CheckoutDeliveryGrupal } from '@/components/CheckoutDeliveryGrupal'
 import { MisPedidosDrawer } from '@/components/MisPedidosDrawer'
-import { configurarGtm, contextoParaPedidoMarketing, registrarEventoTracking, registrarEventoTrackingUnaVez } from '@/lib/tracking'
+import { configurarGtm, configurarMetaPixel, contextoParaPedidoMarketing, registrarEventoPixel, registrarEventoPixelUnaVez, registrarEventoTrackingUnaVez } from '@/lib/tracking'
 
 type HorarioTurno = { diaSemana: number; horaApertura: string; horaCierre: string }
 
@@ -86,6 +86,8 @@ const Menu = () => {
 
   useEffect(() => { if (esSala && restaurante?.id && restaurante.username && tokenTracking) registrarEventoTrackingUnaVez(restaurante.id, restaurante.username, 'session_start', `sala-${tokenTracking}`) }, [esSala, restaurante?.id, restaurante?.username, tokenTracking])
   useEffect(() => { if (esSala && drawerOpen && selectedProduct?.id && restaurante?.id && restaurante.username) registrarEventoTrackingUnaVez(restaurante.id, restaurante.username, 'product_view', `sala-${tokenTracking ?? 'sin-token'}-producto-${selectedProduct.id}`, { productoId: selectedProduct.id, nombreProducto: selectedProduct.nombre, valor: selectedProduct.precio }) }, [drawerOpen, esSala, restaurante?.id, restaurante?.username, selectedProduct?.id, selectedProduct?.precio, tokenTracking])
+  // El pixel de Meta es una capa aparte del embudo de Growth: no depende de la sala.
+  useEffect(() => { if (!drawerOpen || !selectedProduct?.id) return; registrarEventoPixelUnaVez('ViewContent', `producto-${selectedProduct.id}`, { productoId: selectedProduct.id, nombreProducto: selectedProduct.nombre, valor: selectedProduct.precio }) }, [drawerOpen, selectedProduct?.id, selectedProduct?.nombre, selectedProduct?.precio])
 
   const compartirLink = useCallback(() => {
     const mensaje = `Armemos un pedido juntos en ${restaurante?.nombre || 'el restaurante'} 🍽️`
@@ -180,6 +182,7 @@ const Menu = () => {
         const response = await mesaApi.join(urlQrToken) as { success?: boolean; data?: any }
         if (response.success && response.data) {
           configurarGtm(response.data.restaurante?.gtmContainerId)
+          configurarMetaPixel(response.data.restaurante?.metaPixelId)
           setQrToken(urlQrToken)
           setMesa(response.data.mesa)
           setProductos(response.data.productos || [])
@@ -273,7 +276,7 @@ const Menu = () => {
     }
     const precioAgregados = (agregados || []).reduce((sum: number, ag: any) => sum + parseFloat(ag.precio || '0'), 0)
     const precioUnitario = (precioBase + precioAgregados).toFixed(2)
-    if (esSala && restaurante?.id && restaurante.username) registrarEventoTracking(restaurante.id, restaurante.username, 'add_to_cart', { productoId: producto.id, nombreProducto: producto.nombre, cantidad, valor: (Number(precioUnitario) * cantidad).toFixed(2) })
+    registrarEventoPixel('AddToCart', { productoId: producto.id, nombreProducto: producto.nombre, cantidad, valor: (Number(precioUnitario) * cantidad).toFixed(2) })
     sendMessage({
       type: 'AGREGAR_ITEM',
       payload: {
@@ -827,7 +830,7 @@ const Menu = () => {
                         return
                       }
                       if (esSala) {
-                        if (restaurante?.id && restaurante.username) registrarEventoTracking(restaurante.id, restaurante.username, 'checkout_start', { valor: totalPedido, metadata: { cantidadItems: todosLosItems.length, grupal: true } })
+                        registrarEventoPixelUnaVez('InitiateCheckout', 'checkout', { items: todosLosItems, valor: Number(totalPedido) })
                         setMostrarCheckoutEnCarrito(true)
                         setExpandido(false)
                       } else {

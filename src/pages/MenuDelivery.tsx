@@ -19,7 +19,7 @@ import {
 } from '@/components/CheckoutDeliveryGrupal'
 import { redirectPedidoAlWhatsapp } from '@/lib/checkoutWhatsapp'
 import { guardarTemaRestaurante, leerTemaRestaurante, RestauranteTheme } from '@/components/RestauranteTheme'
-import { configurarGtm, codigoPromocionalMarketing, contextoParaPedidoMarketing, guardarContextoTracking, registrarEventoTracking, registrarEventoTrackingUnaVez } from '@/lib/tracking'
+import { configurarGtm, configurarMetaPixel, codigoPromocionalMarketing, contextoParaPedidoMarketing, guardarContextoTracking, registrarEventoPixel, registrarEventoPixelUnaVez, registrarEventoTrackingUnaVez } from '@/lib/tracking'
 
 type HorarioTurno = { diaSemana: number; horaApertura: string; horaCierre: string }
 
@@ -268,6 +268,7 @@ const MenuDelivery = ({ campana = null }: { campana?: CampanaPublica | null }) =
                     setRestaurante(data.data.restaurante)
                     setProductos(data.data.productos)
                     configurarGtm(data.data.restaurante?.gtmContainerId)
+                    configurarMetaPixel(data.data.restaurante?.metaPixelId)
                     const sessionKey = `${data.data.restaurante?.id}:${username}`
                     if (data.data.restaurante?.id && sessionStartRef.current !== sessionKey) {
                         sessionStartRef.current = sessionKey
@@ -704,7 +705,7 @@ const MenuDelivery = ({ campana = null }: { campana?: CampanaPublica | null }) =
         }
 
         setCartItems(prev => [...prev, newItem])
-        if (restaurante?.id) registrarEventoTracking(restaurante.id, username, 'add_to_cart', { productoId: producto.id, nombreProducto: producto.nombre, cantidad, valor: (precioFinalNumber * cantidad).toFixed(2) })
+        registrarEventoPixel('AddToCart', { productoId: producto.id, nombreProducto: producto.nombre, cantidad, valor: (precioFinalNumber * cantidad).toFixed(2) })
 
         const bumpCart = () => {
             setTimeout(() => {
@@ -874,6 +875,7 @@ const MenuDelivery = ({ campana = null }: { campana?: CampanaPublica | null }) =
     useEffect(() => {
         if (!drawerOpen || !selectedProduct?.id || !restaurante?.id) return
         registrarEventoTrackingUnaVez(restaurante.id, username, 'product_view', `producto-${selectedProduct.id}`, { productoId: selectedProduct.id, nombreProducto: selectedProduct.nombre, valor: selectedProduct.precio, ...extrasTrackingCampana(campana) })
+        registrarEventoPixelUnaVez('ViewContent', `producto-${selectedProduct.id}`, { productoId: selectedProduct.id, nombreProducto: selectedProduct.nombre, valor: selectedProduct.precio })
     }, [drawerOpen, restaurante?.id, selectedProduct?.id, selectedProduct?.precio, username, campana])
 
     const handleCheckoutMessage = useCallback((msg: any) => {
@@ -1365,9 +1367,9 @@ const MenuDelivery = ({ campana = null }: { campana?: CampanaPublica | null }) =
                                     onClick={() => {
                                         if (restaurante?.pausadoPorSuscripcion) return
                                         if (!estadoAbierto.abierto && !restaurante?.permitirPedidosProgramados) return
+                                        registrarEventoPixelUnaVez('InitiateCheckout', 'checkout', { items: cartItems, valor: Number(totalPedido) })
                                         setMostrarCheckoutEnCarrito(true)
                                         setExpandido(false)
-                                        if (restaurante?.id) registrarEventoTracking(restaurante.id, username, 'checkout_start', { valor: totalPedido, metadata: { cantidadItems: cartItems.length } })
                                     }}
                                 >
                                     {restaurante?.pausadoPorSuscripcion
