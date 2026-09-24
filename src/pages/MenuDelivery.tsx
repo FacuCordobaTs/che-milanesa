@@ -734,12 +734,13 @@ const MenuDelivery = ({ campana = null }: { campana?: CampanaPublica | null }) =
     const puntosEnCarrito = () => cartItems.reduce((sum, item) => sum + (item.esCanjePuntos ? item.puntosNecesarios * item.cantidad : 0), 0)
     const puntosGanadosCarrito = () => cartItems.reduce((sum, item) => sum + (!item.esCanjePuntos && item.puntosGanados ? item.puntosGanados * item.cantidad : 0), 0)
 
-    // Ritmo de acumulación por monto, tal cual lo configuró el local ("Gana 1 punto cada $100").
+    // Ritmo de acumulación por monto, tal cual lo configuró el local ("1 punto cada $100").
+    // Va chico y debajo del título: la carta lo dice sin gritarlo.
     // En modo 'producto' los puntos salen de cada producto: no hay ritmo por pesos que mostrar.
     const configPuntos = restaurante?.configuracionPuntos
     const pesosPorPunto = Number(configPuntos?.pesosPorPunto || 0)
     const acumulaPorMonto = configPuntos?.modoAcumulacion === 'monto' || configPuntos?.modoAcumulacion === 'ambos'
-    const ritmoPuntos = acumulaPorMonto && pesosPorPunto > 0 ? `Gana 1 punto cada $${pesosPorPunto}` : null
+    const ritmoPuntos = acumulaPorMonto && pesosPorPunto > 0 ? `1 punto cada $${pesosPorPunto}` : null
 
     const alturaCarrito = (() => {
         const n = cartItems.length
@@ -1082,14 +1083,15 @@ const MenuDelivery = ({ campana = null }: { campana?: CampanaPublica | null }) =
                     <section className="flex flex-col items-center gap-4 px-1 pt-1 text-center lg:max-w-2xl lg:mx-auto lg:w-full">
                         <div className="space-y-1.5">
                             {puntosCliente !== null && (
-                                <p className="text-sm font-bold text-primary">
+                                <p className="text-sm font-bold text-foreground">
                                     {puntosCliente - puntosEnCarrito() + puntosGanadosCarrito()} pts
                                 </p>
                             )}
                             <h2 className="text-xl font-extrabold tracking-tight text-foreground">
-                                {ritmoPuntos ?? 'Gana puntos con tus pedidos'}
+                                Gana puntos con tu compra
                             </h2>
                             <p className="text-xs text-muted-foreground">
+                                {ritmoPuntos && `${ritmoPuntos}. `}
                                 {puntosCliente === null ? 'Identifícate para ver tus puntos disponibles y canjear.' : 'Puntos acumulados. Canjea por productos.'}
                             </p>
                         </div>
