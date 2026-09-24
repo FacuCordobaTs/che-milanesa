@@ -613,12 +613,16 @@ const MenuDelivery = ({ campana = null }: { campana?: CampanaPublica | null }) =
         if (b === 'Sin categoría') return -1
         return ordenCategoria(a) - ordenCategoria(b) || a.localeCompare(b)
     }
-    const categoriasBase = Array.from(new Set<string>(productos.map(p => p.categoria).filter(Boolean))).sort(compararCategorias)
-    const tieneProductosCanje = productos.some(p => p.puntosNecesarios > 0)
-    const categorias = ['All', ...categoriasBase]
-    if (restaurante?.sistemaPuntos && tieneProductosCanje) categorias.push('Canje Puntos')
+    // El canje por puntos es un flujo aparte: con el sistema de puntos activo esos
+    // productos salen de sus categorías y se listan todos juntos arriba de la carta.
+    const tieneProductosCanje = !!restaurante?.sistemaPuntos && productos.some(p => p.puntosNecesarios > 0)
+    const productosCanje = tieneProductosCanje ? productos.filter(p => p.puntosNecesarios > 0) : []
+    const productosDeCarta = tieneProductosCanje ? productos.filter(p => !(p.puntosNecesarios > 0)) : productos
 
-    const productosPorCategoria = productos.reduce((acc, producto) => {
+    const categoriasBase = Array.from(new Set<string>(productosDeCarta.map(p => p.categoria).filter(Boolean))).sort(compararCategorias)
+    const categorias = ['All', ...categoriasBase]
+
+    const productosPorCategoria = productosDeCarta.reduce((acc, producto) => {
         const categoria = producto.categoria || 'Sin categoría'
         if (!acc[categoria]) {
             acc[categoria] = []
@@ -628,8 +632,8 @@ const MenuDelivery = ({ campana = null }: { campana?: CampanaPublica | null }) =
     }, {} as Record<string, typeof productos>)
 
     const productosFiltrados = selectedCategory === 'All'
-        ? productos
-        : productos.filter(p => p.categoria === selectedCategory)
+        ? productosDeCarta
+        : productosDeCarta.filter(p => p.categoria === selectedCategory)
 
     const categoriasOrdenadas = Object.keys(productosPorCategoria).sort(compararCategorias)
     const productoCampana = campana?.productoId != null ? productos.find((producto) => producto.id === campana.productoId) ?? null : null
@@ -646,9 +650,7 @@ const MenuDelivery = ({ campana = null }: { campana?: CampanaPublica | null }) =
         ? []
         : selectedCategory === 'All'
             ? categoriasOrdenadas.flatMap(c => productosPorCategoria[c] || [])
-            : selectedCategory === 'Canje Puntos'
-                ? []
-                : productosFiltrados
+            : productosFiltrados
 
     const agregarAlPedido = (producto: any, cantidad: number = 1, ingredientesExcluidos?: number[], agregados?: any[], varianteSeleccionada?: any, varianteSecundariaSeleccionada?: any): boolean => {
         let ingExNombres: string[] = []
@@ -731,6 +733,13 @@ const MenuDelivery = ({ campana = null }: { campana?: CampanaPublica | null }) =
     const itemsTotalCheckout = tieneCodigoCampana ? subtotalBaseOriginal : totalPedido
     const puntosEnCarrito = () => cartItems.reduce((sum, item) => sum + (item.esCanjePuntos ? item.puntosNecesarios * item.cantidad : 0), 0)
     const puntosGanadosCarrito = () => cartItems.reduce((sum, item) => sum + (!item.esCanjePuntos && item.puntosGanados ? item.puntosGanados * item.cantidad : 0), 0)
+
+    // Ritmo de acumulación por monto, tal cual lo configuró el local ("Gana 1 punto cada $100").
+    // En modo 'producto' los puntos salen de cada producto: no hay ritmo por pesos que mostrar.
+    const configPuntos = restaurante?.configuracionPuntos
+    const pesosPorPunto = Number(configPuntos?.pesosPorPunto || 0)
+    const acumulaPorMonto = configPuntos?.modoAcumulacion === 'monto' || configPuntos?.modoAcumulacion === 'ambos'
+    const ritmoPuntos = acumulaPorMonto && pesosPorPunto > 0 ? `Gana 1 punto cada $${pesosPorPunto}` : null
 
     const alturaCarrito = (() => {
         const n = cartItems.length
@@ -1067,31 +1076,48 @@ const MenuDelivery = ({ campana = null }: { campana?: CampanaPublica | null }) =
                     </section>
                 )}
 
+                {/* Sin caja ni borde: el bloque flota sobre el fondo. El título es el ritmo
+                    de acumulación configurado por el local y la acción vive debajo del texto. */}
                 {restaurante?.sistemaPuntos && (
-                    <section className="bg-primary/10 border border-primary/20 p-4 rounded-xl flex items-center justify-between shadow-sm lg:max-w-2xl lg:mx-auto lg:w-full">
-                        <div className="flex flex-col">
-                            <div className="flex items-center gap-2 mb-1">
-                                <span className="bg-primary text-primary-foreground text-xs px-2 py-0.5 rounded-full font-bold">PUNTOS</span>
-                                {puntosCliente !== null && (
-                                    <span className="font-semibold text-foreground text-sm">
-                                        {puntosCliente - puntosEnCarrito() + puntosGanadosCarrito()} pts
-                                    </span>
-                                )}
-                            </div>
-                            <p className="text-xs text-muted-foreground max-w-[200px]">
+                    <section className="flex flex-col items-center gap-4 px-1 pt-1 text-center lg:max-w-2xl lg:mx-auto lg:w-full">
+                        <div className="space-y-1.5">
+                            {puntosCliente !== null && (
+                                <p className="text-sm font-bold text-primary">
+                                    {puntosCliente - puntosEnCarrito() + puntosGanadosCarrito()} pts
+                                </p>
+                            )}
+                            <h2 className="text-xl font-extrabold tracking-tight text-foreground">
+                                {ritmoPuntos ?? 'Gana puntos con tus pedidos'}
+                            </h2>
+                            <p className="text-xs text-muted-foreground">
                                 {puntosCliente === null ? 'Identifícate para ver tus puntos disponibles y canjear.' : 'Puntos acumulados. Canjea por productos.'}
                             </p>
                         </div>
-                        <div>
-                            {puntosCliente === null ? (
-                                <Button size="sm" onClick={() => setModalPuntosOpen(true)} className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm font-semibold rounded-lg text-xs">
-                                    Identifícate
-                                </Button>
-                            ) : (
-                                <Button disabled variant="outline" size="sm" className="bg-background/80 border-primary/30 text-xs font-semibold text-primary/80">
-                                    Activo
-                                </Button>
-                            )}
+                        {puntosCliente === null ? (
+                            <Button onClick={() => setModalPuntosOpen(true)} className="h-14 w-full rounded-2xl bg-yellow-400 text-base font-bold text-black shadow-lg shadow-yellow-400/25 hover:bg-yellow-300">
+                                Identifícate
+                            </Button>
+                        ) : (
+                            <Button disabled variant="outline" className="h-9 rounded-full px-5 text-xs font-semibold text-muted-foreground">
+                                Activo
+                            </Button>
+                        )}
+                    </section>
+                )}
+
+                {productosCanje.length > 0 && (
+                    <section className="space-y-3 pt-2">
+                        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider px-1">
+                            Productos a Canjear
+                        </h3>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 px-1">
+                            {productosCanje.map((producto: any) => (
+                                <ProductoCanjeCard
+                                    key={producto.id}
+                                    producto={producto}
+                                    onClick={() => abrirDetalleProducto({ ...producto, intentandoCanjear: true })}
+                                />
+                            ))}
                         </div>
                     </section>
                 )}
@@ -1143,24 +1169,12 @@ const MenuDelivery = ({ campana = null }: { campana?: CampanaPublica | null }) =
                                     </div>
                                 )
                             })
+                        ) : productosCanje.length > 0 ? (
+                            // Lo único que hay son canjeables y ya se listan arriba.
+                            null
                         ) : (
                             <EmptyState />
                         )
-                    ) : selectedCategory === 'Canje Puntos' ? (
-                        <div className="space-y-4">
-                            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider px-1">
-                                Productos a Canjear
-                            </h3>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 px-1">
-                                {productos.filter(p => p.puntosNecesarios > 0).map((producto: any) => (
-                                    <ProductoCanjeCard
-                                        key={producto.id}
-                                        producto={producto}
-                                        onClick={() => abrirDetalleProducto({ ...producto, intentandoCanjear: true })}
-                                    />
-                                ))}
-                            </div>
-                        </div>
                     ) : (
                         productosFiltrados.length > 0 ? (
                             <div className="space-y-4">

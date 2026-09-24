@@ -41,6 +41,9 @@ interface Product {
   tituloExtrasSecundarios?: string
   descuento?: number | null
   descuentoFechaFin?: string | null
+  /** Canje por puntos: el producto se agrega pagando puntos en vez de dinero. */
+  intentandoCanjear?: boolean
+  puntosNecesarios?: number | string | null
 }
 
 interface ProductDetailDrawerProps {
@@ -208,11 +211,17 @@ export function ProductDetailDrawer({ product, open, onClose, onAddToOrder, sibl
     ? parseFloat(varianteSeleccionada.precio)
     : parseFloat(String(product?.precio ?? 0))
   const precioBase = precioBasePrimario + (varianteSecundariaSeleccionada ? parseFloat(varianteSecundariaSeleccionada.precio) : 0)
-  const tieneDescuento = !!(product?.descuento && product.descuento > 0)
+  // Un canje se paga con puntos: en ese flujo no hay precio en pesos que mostrar, y las
+  // variantes ni los extras suman dinero (el costo lo define sólo el producto).
+  const esCanje = !!(product?.intentandoCanjear && Number(product?.puntosNecesarios || 0) > 0)
+  const puntosCanje = Number(product?.puntosNecesarios || 0) * quantity
+  const tieneDescuento = !esCanje && !!(product?.descuento && product.descuento > 0)
   const precioUnitConDescuento = tieneDescuento ? precioBase * (1 - (product!.descuento! / 100)) : precioBase
   const precioAgregados = agregadosSeleccionados.reduce((sum, ag) => sum + parseFloat(ag.precio || '0'), 0)
   const total = (precioUnitConDescuento + precioAgregados) * quantity
   const totalTachado = (precioBase + precioAgregados) * quantity
+  // Lo que muestra el header y el botón: pesos en la carta, puntos en el canje.
+  const etiquetaTotal = esCanje ? `${puntosCanje} pts` : `$${total.toFixed(2)}`
 
   const handleContinue = () => {
     if (variantBloqueada) return
@@ -431,7 +440,7 @@ export function ProductDetailDrawer({ product, open, onClose, onAddToOrder, sibl
                                 </p>
                               )}
                               <p className="text-2xl font-bold text-primary">
-                                ${total.toFixed(2)}
+                                {etiquetaTotal}
                               </p>
                             </div>
                           </div>
@@ -461,7 +470,7 @@ export function ProductDetailDrawer({ product, open, onClose, onAddToOrder, sibl
                                 </p>
                               )}
                               <p className="text-2xl font-bold text-white drop-shadow-sm">
-                                ${total.toFixed(2)}
+                                {etiquetaTotal}
                               </p>
                             </div>
                           </div>
@@ -519,7 +528,7 @@ export function ProductDetailDrawer({ product, open, onClose, onAddToOrder, sibl
                                               {v.nombre}
                                             </span>
                                             <span className="flex items-center gap-2">
-                                              {varianteTienePrecioPropio && (
+                                              {!esCanje && varianteTienePrecioPropio && (
                                                 <span className={cn('text-[15px]', sel ? 'font-semibold text-primary' : 'text-muted-foreground')}>
                                                   {stage === 'secondary'
                                                     ? (precioVariante > 0 ? `+$${precioVariante.toFixed(2)}` : '')
@@ -596,9 +605,11 @@ export function ProductDetailDrawer({ product, open, onClose, onAddToOrder, sibl
                                               {ag.nombre}
                                             </span>
                                             <span className="flex items-center gap-2">
-                                              <span className={cn('text-[15px]', sel ? 'font-semibold text-primary' : 'text-muted-foreground')}>
-                                                +${parseFloat(ag.precio).toFixed(2)}
-                                              </span>
+                                              {!esCanje && (
+                                                <span className={cn('text-[15px]', sel ? 'font-semibold text-primary' : 'text-muted-foreground')}>
+                                                  +${parseFloat(ag.precio).toFixed(2)}
+                                                </span>
+                                              )}
                                               {sel && <Check className="h-[18px] w-[18px] text-primary" />}
                                             </span>
                                           </button>
@@ -671,7 +682,7 @@ export function ProductDetailDrawer({ product, open, onClose, onAddToOrder, sibl
                                 transition={{ duration: 0.2 }}
                                 className="absolute inset-0 flex items-center justify-center"
                               >
-                                Agregar · ${total.toFixed(2)}
+                                Agregar · {etiquetaTotal}
                               </motion.span>
                             )}
                           </AnimatePresence>
