@@ -613,16 +613,15 @@ const MenuDelivery = ({ campana = null }: { campana?: CampanaPublica | null }) =
         if (b === 'Sin categoría') return -1
         return ordenCategoria(a) - ordenCategoria(b) || a.localeCompare(b)
     }
-    // El canje por puntos es un flujo aparte: con el sistema de puntos activo esos
-    // productos salen de sus categorías y se listan todos juntos arriba de la carta.
-    const tieneProductosCanje = !!restaurante?.sistemaPuntos && productos.some(p => p.puntosNecesarios > 0)
-    const productosCanje = tieneProductosCanje ? productos.filter(p => p.puntosNecesarios > 0) : []
-    const productosDeCarta = tieneProductosCanje ? productos.filter(p => !(p.puntosNecesarios > 0)) : productos
+    // Un costo en puntos no le quita el precio: el producto se sigue vendiendo en su
+    // categoría y, con el sistema de puntos activo, además se lista arriba de la
+    // carta para canjearlo (flujo aparte, `intentandoCanjear`).
+    const productosCanje = restaurante?.sistemaPuntos ? productos.filter(p => p.puntosNecesarios > 0) : []
 
-    const categoriasBase = Array.from(new Set<string>(productosDeCarta.map(p => p.categoria).filter(Boolean))).sort(compararCategorias)
+    const categoriasBase = Array.from(new Set<string>(productos.map(p => p.categoria).filter(Boolean))).sort(compararCategorias)
     const categorias = ['All', ...categoriasBase]
 
-    const productosPorCategoria = productosDeCarta.reduce((acc, producto) => {
+    const productosPorCategoria = productos.reduce((acc, producto) => {
         const categoria = producto.categoria || 'Sin categoría'
         if (!acc[categoria]) {
             acc[categoria] = []
@@ -632,8 +631,8 @@ const MenuDelivery = ({ campana = null }: { campana?: CampanaPublica | null }) =
     }, {} as Record<string, typeof productos>)
 
     const productosFiltrados = selectedCategory === 'All'
-        ? productosDeCarta
-        : productosDeCarta.filter(p => p.categoria === selectedCategory)
+        ? productos
+        : productos.filter(p => p.categoria === selectedCategory)
 
     const categoriasOrdenadas = Object.keys(productosPorCategoria).sort(compararCategorias)
     const productoCampana = campana?.productoId != null ? productos.find((producto) => producto.id === campana.productoId) ?? null : null
@@ -1171,9 +1170,6 @@ const MenuDelivery = ({ campana = null }: { campana?: CampanaPublica | null }) =
                                     </div>
                                 )
                             })
-                        ) : productosCanje.length > 0 ? (
-                            // Lo único que hay son canjeables y ya se listan arriba.
-                            null
                         ) : (
                             <EmptyState />
                         )
