@@ -301,7 +301,7 @@ const MenuDelivery = ({ campana = null }: { campana?: CampanaPublica | null }) =
         const productoId = Number(searchParams.get('producto'))
         if (!Number.isInteger(productoId) || productoId <= 0) return
         productoAplicadoRef.current = true
-        const producto = productos.find((item) => item.id === productoId && item.disponible !== false)
+        const producto = productos.find((item) => item.id === productoId && item.disponible !== false && !item.soloCanjePuntos)
         const params = new URLSearchParams(searchParams); params.delete('producto'); setSearchParams(params, { replace: true })
         if (producto) { setSelectedProduct(producto); setDrawerOpen(true) }
     }, [productos, searchParams, setSearchParams])
@@ -618,10 +618,11 @@ const MenuDelivery = ({ campana = null }: { campana?: CampanaPublica | null }) =
     // carta para canjearlo (flujo aparte, `intentandoCanjear`).
     const productosCanje = restaurante?.sistemaPuntos ? productos.filter(p => p.puntosNecesarios > 0) : []
 
-    const categoriasBase = Array.from(new Set<string>(productos.map(p => p.categoria).filter(Boolean))).sort(compararCategorias)
+    const productosVenta = productos.filter(p => !p.soloCanjePuntos)
+    const categoriasBase = Array.from(new Set<string>(productosVenta.map(p => p.categoria).filter(Boolean))).sort(compararCategorias)
     const categorias = ['All', ...categoriasBase]
 
-    const productosPorCategoria = productos.reduce((acc, producto) => {
+    const productosPorCategoria = productosVenta.reduce((acc, producto) => {
         const categoria = producto.categoria || 'Sin categoría'
         if (!acc[categoria]) {
             acc[categoria] = []
@@ -631,11 +632,11 @@ const MenuDelivery = ({ campana = null }: { campana?: CampanaPublica | null }) =
     }, {} as Record<string, typeof productos>)
 
     const productosFiltrados = selectedCategory === 'All'
-        ? productos
-        : productos.filter(p => p.categoria === selectedCategory)
+        ? productosVenta
+        : productosVenta.filter(p => p.categoria === selectedCategory)
 
     const categoriasOrdenadas = Object.keys(productosPorCategoria).sort(compararCategorias)
-    const productoCampana = campana?.productoId != null ? productos.find((producto) => producto.id === campana.productoId) ?? null : null
+    const productoCampana = campana?.productoId != null ? productosVenta.find((producto) => producto.id === campana.productoId) ?? null : null
 
     const abrirDetalleProducto = (producto: any) => {
         setSelectedProduct(producto)
@@ -660,6 +661,10 @@ const MenuDelivery = ({ campana = null }: { campana?: CampanaPublica | null }) =
         }
 
         const esCanje = !!producto.intentandoCanjear;
+        if (producto.soloCanjePuntos && !esCanje) {
+            toast.error('Este producto sólo se puede canjear por puntos.');
+            return false;
+        }
         if (esCanje) {
             const puntosRestantes = (puntosCliente || 0) - puntosEnCarrito() - (producto.puntosNecesarios * cantidad);
             if (puntosRestantes < 0) {
