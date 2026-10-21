@@ -4,7 +4,7 @@ import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { toast } from 'sonner'
-import { MapPin, Store, Truck, AlertTriangle, Loader2, Pencil, X, Tag, Home, Building2, Clock, CreditCard, Wallet, Banknote, ChevronLeft, Check, Zap, MessageCircle } from 'lucide-react'
+import { MapPin, Store, Truck, AlertTriangle, Loader2, Pencil, X, Tag, Home, Building2, Clock, CreditCard, Wallet, Banknote, ChevronLeft, Check, Zap, MessageCircle, ArrowRight } from 'lucide-react'
 import { AddressAutocomplete } from '@/components/AddressAutocomplete'
 import { AddressMapPreview } from '@/components/AddressMapPreview'
 import type { CheckoutDeliveryData, CheckoutEditSemaphore } from '@/store/mesaStore'
@@ -1151,7 +1151,7 @@ export function CheckoutDeliveryGrupal({
           <span className="font-semibold">-${(checkoutData?.montoDescuento ?? montoDescuento).toFixed(2)}</span>
         </div>
       )}
-      <div className="flex justify-between font-bold text-base pt-2.5">
+      <div className="flex justify-between font-bold text-base pt-3 border-t border-dashed border-foreground/20">
         <span>Total</span>
         <span>${checkoutData?.total || total.toFixed(2)}</span>
       </div>
@@ -1177,7 +1177,7 @@ export function CheckoutDeliveryGrupal({
         disabled={accionDisabled || submittingOrder}
       >
         {enviarPedidoWhatsapp && esUltimo && <MessageCircle className="w-5 h-5 mr-2" />}
-        {modo === 'pasos' && !esUltimo ? 'Siguiente' : (labelGuardar || 'Guardar datos')}
+        {modo === 'pasos' && !esUltimo ? <>Siguiente <ArrowRight className="w-4 h-4 ml-1" /></> : (labelGuardar || 'Guardar datos')}
       </Button>
     )
   } else if (checkoutData) {
@@ -1217,11 +1217,11 @@ export function CheckoutDeliveryGrupal({
               {pasos.map((_, i) => (
                 <div
                   key={i}
-                  className={`h-1 rounded-full flex-1 transition-all duration-300 ${i <= paso ? 'bg-primary' : 'bg-secondary'}`}
+                  className={`h-1.5 rounded-full flex-1 transition-all duration-300 ${i <= paso ? 'bg-primary' : 'bg-secondary'}`}
                 />
               ))}
             </div>
-            <span className="text-xs font-semibold text-muted-foreground shrink-0">{paso + 1}/{pasos.length}</span>
+            <span className="font-che text-sm text-muted-foreground shrink-0 tabular-nums">{paso + 1}/{pasos.length}</span>
           </>
         ) : (
           <span className="text-sm font-bold">
@@ -1279,7 +1279,7 @@ export function CheckoutDeliveryGrupal({
       <div className={`px-5 pb-5 pt-4 bg-background space-y-3 lg:w-full lg:max-w-md lg:mx-auto ${compacto ? 'sticky bottom-0 z-10' : 'shrink-0'}`}>
         <div className="flex justify-between items-baseline">
           <span className="text-sm text-muted-foreground">Total</span>
-          <span className="text-2xl font-black tracking-tight">${checkoutData?.total || total.toFixed(2)}</span>
+          <span className="font-che text-[28px] leading-none tabular-nums">${Number(checkoutData?.total || total).toFixed(2).replace(/\.00$/, '')}</span>
         </div>
         {footerButton}
       </div>

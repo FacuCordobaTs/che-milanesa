@@ -439,7 +439,7 @@ export function ProductDetailDrawer({ product, open, onClose, onAddToOrder, sibl
                                   ${totalTachado.toFixed(2)}
                                 </p>
                               )}
-                              <p className="text-2xl font-bold text-primary">
+                              <p className="font-che text-[26px] leading-none tabular-nums text-foreground">
                                 {etiquetaTotal}
                               </p>
                             </div>
@@ -469,7 +469,7 @@ export function ProductDetailDrawer({ product, open, onClose, onAddToOrder, sibl
                                   ${totalTachado.toFixed(2)}
                                 </p>
                               )}
-                              <p className="text-2xl font-bold text-white drop-shadow-sm">
+                              <p className="font-che text-[26px] leading-none tabular-nums text-[#fdb700] drop-shadow-sm">
                                 {etiquetaTotal}
                               </p>
                             </div>

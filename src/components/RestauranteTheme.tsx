@@ -16,6 +16,15 @@ function colorSeguro(value: unknown): string | null {
   return typeof value === 'string' && HEX_COLOR.test(value) ? value : null
 }
 
+/** Luminancia relativa (WCAG) de un #rrggbb por encima de la mitad: el texto encima va oscuro. */
+function esColorClaro(hex: string): boolean {
+  const canal = (i: number) => {
+    const c = parseInt(hex.slice(i, i + 2), 16) / 255
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
+  }
+  return 0.2126 * canal(1) + 0.7152 * canal(3) + 0.0722 * canal(5) > 0.45
+}
+
 export function guardarTemaRestaurante(key: string, restaurante: RestauranteThemeData) {
   const primario = colorSeguro(restaurante.colorPrimario)
   const secundario = colorSeguro(restaurante.colorSecundario)
@@ -52,17 +61,19 @@ export function RestauranteTheme({
   const usarColorUnico = restaurante?.usarColorUnico ?? cachedTheme?.usarColorUnico ?? false
 
   if (usarColorUnico && primario) {
+    // Sobre un color de marca claro (el amarillo de Che) el texto blanco no se lee: va casi negro.
+    const textoSobrePrimario = esColorClaro(primario) ? '#111111' : '#ffffff'
     return (
       <style>{`
         :root, .dark {
           --primary: ${primario};
-          --primary-foreground: #ffffff;
+          --primary-foreground: ${textoSobrePrimario};
           --accent: ${primario};
-          --accent-foreground: #ffffff;
+          --accent-foreground: ${textoSobrePrimario};
           --ring: ${primario};
           --chart-1: ${primario};
           --sidebar-primary: ${primario};
-          --sidebar-primary-foreground: #ffffff;
+          --sidebar-primary-foreground: ${textoSobrePrimario};
         }
       `}</style>
     )

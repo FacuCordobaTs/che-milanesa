@@ -8,9 +8,11 @@ import { mesaApi } from '@/lib/api'
 import { toast } from 'sonner'
 import {
   Trash2, Maximize2, Minimize2,
-  Wifi, WifiOff, Package, UtensilsCrossed, Receipt, Utensils,
+  Wifi, WifiOff, Package, UtensilsCrossed, Utensils,
   Check, X, Users, Loader2, Share2, Clock
 } from 'lucide-react'
+import { BotonPedidoChe, Damero, EstadoChe, FooterChe, HeaderChe, PanelPromos, TituloSeccionChe } from '@/components/marca/MarcaChe'
+import { textoEstado } from '@/lib/marcaChe'
 import { ProductDetailDrawer } from '@/components/ProductDetailDrawer'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { guardarTemaRestaurante, leerTemaRestaurante, RestauranteTheme } from '@/components/RestauranteTheme'
@@ -52,7 +54,7 @@ function checkIsOpen(horarios: HorarioTurno[]): { abierto: boolean; proximaApert
   return { abierto: false, proximaApertura: mejor?.texto || null }
 }
 
-// Categoría destacada de promociones: se hardcodea su estilo (amarillo y más grande).
+// Categoría destacada de promociones: se dibuja como panel propio (PanelPromos) en su lugar de la carta.
 const CATEGORIA_PROMOCIONES = 'promociones de la semana'
 const esCategoriaPromociones = (nombre: string) => nombre.trim().toLowerCase() === CATEGORIA_PROMOCIONES
 
@@ -519,32 +521,13 @@ const Menu = () => {
     )
   }
 
+  // Promos de la semana: se dibujan como un panel propio en su lugar de la carta.
+  const categoriaPromos = categoriasOrdenadas.find(esCategoriaPromociones) ?? null
+  const productosPromos = categoriaPromos ? productosPorCategoria[categoriaPromos] ?? [] : []
+
   return (
-    <div className="min-h-screen pb-32 bg-background font-sans selection:bg-primary/20">
+    <div className="min-h-screen bg-background font-sans selection:bg-primary/20">
       {themeStyles}
-
-      {/* --- HEADER --- */}
-      <div className="sticky top-0 z-20 bg-background/80 backdrop-blur-md border-b border-border/50 supports-backdrop-filter:bg-background/60">
-        <div className="max-w-2xl lg:max-w-5xl xl:max-w-6xl mx-auto px-4 py-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-secondary/50">
-              {isConnected ? <Wifi className="w-3.5 h-3.5 text-green-500" /> : <WifiOff className="w-3.5 h-3.5 text-destructive" />}
-              <span className="text-xs font-medium text-muted-foreground hidden sm:inline-block">{mesa?.nombre}</span>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <ThemeToggle />
-              <button
-                onClick={() => setMisPedidosOpen(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold text-primary hover:bg-primary/10 transition-colors border border-primary/20"
-              >
-                <Package className="w-3.5 h-3.5" />
-                Mis Pedidos
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
 
       {localCerrado && (
         <div className={puedeProgramar ? "bg-amber-500 text-white" : "bg-red-600 text-white"}>
@@ -560,96 +543,95 @@ const Menu = () => {
         </div>
       )}
 
-      <div className="max-w-2xl lg:max-w-5xl xl:max-w-6xl mx-auto px-5 pt-4 space-y-6">
+      {/* --- HEADER --- */}
+      <HeaderChe>
+        <span title={isConnected ? 'Conectado' : 'Sin conexión'} className="grid size-9 place-items-center rounded-full bg-white/10">
+          {isConnected ? <Wifi className="w-4 h-4 text-emerald-400" /> : <WifiOff className="w-4 h-4 text-red-400" />}
+        </span>
+        <span className="text-white [&_button]:bg-white/10 [&_button]:text-white [&_button:hover]:bg-white/20 [&_button:hover]:text-white">
+          <ThemeToggle />
+        </span>
+        <button
+          onClick={() => setMisPedidosOpen(true)}
+          className="flex h-9 items-center gap-1.5 rounded-full border border-white/20 px-3.5 text-xs font-semibold text-white transition-colors hover:border-white/50"
+        >
+          <Package className="w-3.5 h-3.5" />
+          Mis pedidos
+        </button>
+      </HeaderChe>
 
-        {/* --- SECCIÓN BIENVENIDA & USUARIOS --- */}
-        <section className="space-y-4 lg:max-w-2xl lg:mx-auto lg:w-full">
-          <div className="flex items-end justify-between px-1">
-            <div>
-              <p className="text-sm text-muted-foreground font-medium mb-0.5">Bienvenido,</p>
-              <h1 className="text-3xl font-extrabold tracking-tight text-primary">
-                {clienteNombre}
-              </h1>
-            </div>
-            <div className="text-right">
-              {restaurante?.esCarrito && pedido?.nombrePedido ? (
-                <>
-                  <span className="text-xs font-semibold text-primary uppercase tracking-wider block">Pedido</span>
-                  <span className="text-sm font-medium">de {pedido.nombrePedido}</span>
-                </>
-              ) : (
-                <>
-                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">Pedido</span>
-                  <span className="text-sm font-medium">{mesa?.nombre}</span>
-                </>
-              )}
-            </div>
+      {/* --- BIENVENIDA & USUARIOS --- */}
+      <section className="bg-[#111] text-white">
+        <div className="max-w-2xl lg:max-w-5xl xl:max-w-6xl mx-auto px-5 pb-8 pt-3 space-y-5">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded-full bg-[#fdb700] px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-[#111]">
+              {restaurante?.esCarrito && pedido?.nombrePedido ? `Pedido de ${pedido.nombrePedido}` : (mesa?.nombre || 'Pedido en grupo')}
+            </span>
+            <EstadoChe abierto={estadoAbierto.abierto} texto={textoEstado(horarios, estadoAbierto)} />
           </div>
+          <h1 className="font-che text-[34px] uppercase leading-[1.02] break-words [overflow-wrap:anywhere] sm:text-5xl">
+            Hola, <span className="text-[#fdb700]">{clienteNombre}</span>.
+          </h1>
 
-          {/* Lista de Usuarios */}
           <div>
-            <div className="flex items-center gap-2 mb-2 px-1">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                En el pedido:
-              </p>
-            </div>
-
-            <div className="flex -mx-5 pl-5 overflow-x-auto scrollbar-hide py-2 gap-4 snap-x">
+            <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.18em] text-white/50">En el pedido</p>
+            <div className="flex -mx-5 px-5 overflow-x-auto py-1 gap-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {/* Usuario actual */}
-              <div className="flex flex-col items-center gap-1.5 min-w-[56px] snap-start">
-                <div className="relative">
-                  <div className="w-12 h-12 rounded-xl border-2 shadow-sm ring-2 ring-background bg-primary text-primary-foreground font-bold text-sm flex items-center justify-center">
-                    YO
-                  </div>
+              <div className="flex flex-col items-center gap-1.5 min-w-[56px]">
+                <div className="w-12 h-12 rounded-full bg-[#fdb700] text-[#111] font-bold text-sm flex items-center justify-center">
+                  YO
                 </div>
-                <span className="text-xs font-medium truncate max-w-[60px] text-center">Tú</span>
+                <span className="text-xs font-medium truncate max-w-[60px] text-center">Vos</span>
               </div>
 
               {/* Otros usuarios */}
               {clientes.filter(c => c.nombre !== clienteNombre).map((cliente) => (
-                <div key={cliente.id} className="flex flex-col items-center gap-1.5 min-w-[56px] snap-start opacity-80 hover:opacity-100 transition-opacity">
-                  <div className="w-12 h-12 rounded-xl border border-border shadow-xs bg-secondary text-foreground text-xs font-medium flex items-center justify-center">
+                <div key={cliente.id} className="flex flex-col items-center gap-1.5 min-w-[56px]">
+                  <div className="w-12 h-12 rounded-full bg-white/10 text-white text-xs font-bold flex items-center justify-center">
                     {cliente.nombre.slice(0, 2).toUpperCase()}
                   </div>
-                  <span className="text-xs text-muted-foreground truncate max-w-[60px] text-center">
+                  <span className="text-xs text-white/60 truncate max-w-[60px] text-center">
                     {cliente.nombre}
                   </span>
                 </div>
               ))}
 
               {clientes.length === 1 && (
-                <div className="flex items-center justify-center pl-2">
-                  <p className="text-xs text-muted-foreground italic">Esperando...</p>
+                <div className="flex items-center justify-center pl-1">
+                  <p className="text-xs text-white/50 italic">Esperando...</p>
                 </div>
               )}
-
-              <div className="min-w-5 shrink-0"></div>
             </div>
           </div>
 
           {/* Botón compartir sala */}
-          {window.location.pathname.includes('/sala/') && (
+          {esSala && (
             <button
               onClick={compartirLink}
-              className="w-full flex items-center justify-center gap-2.5 py-3 px-4 rounded-xl border-2 border-dashed border-primary/30 text-primary hover:bg-primary/5 active:bg-primary/10 transition-colors text-sm font-semibold"
+              className="inline-flex h-12 items-center justify-center gap-2.5 rounded-full bg-[#fdb700] px-6 text-[15px] font-bold text-[#111] transition-transform active:scale-95"
             >
               <Share2 className="w-4 h-4" />
               Invitá a tus amigos
             </button>
           )}
-        </section>
-        
+        </div>
+      </section>
+      <Damero />
+
+      <div className="max-w-2xl lg:max-w-5xl xl:max-w-6xl mx-auto px-5 pt-6 space-y-8">
+
+
         {/* --- CATEGORÍAS --- */}
         {categorias.length > 1 && (
           <section className="space-y-3 pt-2">
-            <h2 className="text-lg font-bold text-foreground px-1">Categorías</h2>
-            <div className="flex gap-2 overflow-x-auto pb-2 mx-2 scrollbar-hide snap-x">
+            <TituloSeccionChe titulo="La carta" />
+            <div className="flex gap-2 overflow-x-auto pb-2 -mx-5 px-5 [scrollbar-width:none] snap-x [&::-webkit-scrollbar]:hidden">
               {categorias.map((category) => (
                 <Button
                   key={category}
                   onClick={() => setSelectedCategory(category || 'All')}
                   variant={selectedCategory === category ? "default" : "secondary"}
-                  className={`rounded-lg px-5 h-10 text-xs font-medium whitespace-nowrap snap-start transition-all ${selectedCategory === category
+                  className={`rounded-full px-5 h-10 text-xs font-semibold whitespace-nowrap snap-start transition-all ${selectedCategory === category
                     ? "shadow-md"
                     : "bg-secondary/50 hover:bg-secondary border border-transparent"
                   }`}
@@ -662,17 +644,31 @@ const Menu = () => {
         )}
 
         {/* --- PRODUCTOS --- */}
-        <section className="space-y-8 min-h-[50vh]">
+        <section className="space-y-10 min-h-[50vh]">
           {selectedCategory === 'All' ? (
             categoriasOrdenadas.length > 0 ? (
               categoriasOrdenadas.map((categoriaNombre) => {
                 const productosDeCategoria = productosPorCategoria[categoriaNombre]
                 if (!productosDeCategoria || productosDeCategoria.length === 0) return null
+                if (esCategoriaPromociones(categoriaNombre)) return (
+                  <div key="promos" className="scroll-mt-4">
+                    <PanelPromos titulo={categoriaPromos ?? 'Promociones de la semana'} cantidad={productosPromos.length}>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
+                        {productosPromos.map((producto: any) => (
+                          <ProductoCard
+                            key={producto.id}
+                            producto={producto}
+                            onClick={() => abrirDetalleProducto(producto)}
+                            fullWidth
+                          />
+                        ))}
+                      </div>
+                    </PanelPromos>
+                  </div>
+                )
                 return (
                   <div key={categoriaNombre} className="space-y-4">
-                    <h3 className={`uppercase tracking-wider px-1 ${esCategoriaPromociones(categoriaNombre) ? 'text-xl font-extrabold text-yellow-500 dark:text-yellow-400' : 'text-sm font-semibold text-muted-foreground'}`}>
-                      {categoriaNombre}
-                    </h3>
+                    <TituloSeccionChe titulo={categoriaNombre} />
                     <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 px-1">
                       {productosDeCategoria.map((producto) => (
                         <ProductoCard
@@ -689,12 +685,25 @@ const Menu = () => {
             ) : (
               <EmptyState />
             )
+          ) : esCategoriaPromociones(selectedCategory) ? (
+            <div key="promos" className="scroll-mt-4">
+              <PanelPromos titulo={categoriaPromos ?? 'Promociones de la semana'} cantidad={productosPromos.length}>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
+                  {productosPromos.map((producto: any) => (
+                    <ProductoCard
+                      key={producto.id}
+                      producto={producto}
+                      onClick={() => abrirDetalleProducto(producto)}
+                      fullWidth
+                    />
+                  ))}
+                </div>
+              </PanelPromos>
+            </div>
           ) : (
             productosFiltrados.length > 0 ? (
               <div className="space-y-4">
-                <h3 className={`uppercase tracking-wider px-1 ${esCategoriaPromociones(selectedCategory) ? 'text-xl font-extrabold text-yellow-500 dark:text-yellow-400' : 'text-sm font-semibold text-muted-foreground'}`}>
-                  {selectedCategory}
-                </h3>
+                <TituloSeccionChe titulo={selectedCategory} />
                 <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 px-1">
                   {productosFiltrados.map((producto) => (
                     <ProductoCard
@@ -713,34 +722,19 @@ const Menu = () => {
         </section>
       </div>
 
+      <FooterChe
+        horarios={horarios}
+        direccion={restaurante?.direccion}
+        onPedir={() => (todosLosItems.length > 0 ? abrirCarrito() : window.scrollTo({ top: 0, behavior: 'smooth' }))}
+      />
+
       {/* --- BOTÓN FLOTANTE CARRITO --- */}
-      <div className={`fixed bottom-6 left-0 right-0 flex justify-center z-40 transition-all duration-500 ${todosLosItems.length > 0 ? 'translate-y-0 opacity-100' : 'translate-y-20 opacity-0'}`}>
-        <button
-          onClick={abrirCarrito}
-          className={`
-            group relative flex items-center gap-4 pl-5 pr-6 py-3.5 rounded-full
-            shadow-2xl hover:scale-[1.02] active:scale-95 transition-all duration-300
-            bg-zinc-900 text-white shadow-zinc-900/20
-            dark:bg-white/10 dark:text-white dark:backdrop-blur-xl
-            dark:border dark:border-white/10 dark:shadow-[0_0_20px_rgba(255,255,255,0.05)]
-          `}
-        >
-          <div className="absolute -top-2 -right-1 bg-red-500 text-white text-[10px] font-bold h-5 min-w-[20px] px-1 flex items-center justify-center rounded-full border-2 border-background z-10">
-            {todosLosItems.length}
-          </div>
-
-          <div className="flex items-center gap-2.5">
-            <Receipt className="w-5 h-5 text-current opacity-90" />
-            <span className="font-semibold text-sm tracking-wide">Ver Pedido</span>
-          </div>
-
-          <div className="h-4 w-px bg-current opacity-20"></div>
-
-          <span className="font-bold text-base font-mono">
-            ${totalPedido}
-          </span>
-        </button>
-      </div>
+      <BotonPedidoChe
+        cantidad={todosLosItems.length}
+        total={Number(totalPedido).toFixed(2).replace(/\.00$/, '')}
+        visible={todosLosItems.length > 0}
+        onClick={abrirCarrito}
+      />
 
       {/* --- OVERLAY DEL PEDIDO --- */}
       {carritoAbierto && (
@@ -761,11 +755,11 @@ const Menu = () => {
           {/* Header */}
           <div className="shrink-0 sticky top-0 z-10 bg-background pt-2">
             <div className="w-full flex justify-center pt-3 pb-1">
-              <span className="w-12 h-1.5 rounded-full bg-muted-foreground/30" />
+              <span className="w-12 h-1.5 rounded-full bg-primary" />
             </div>
             <div className="flex items-center justify-between px-4 pb-3 pt-2">
               <div className="w-8 h-8 flex items-center justify-center" />
-              <span className="text-xl font-extrabold">
+              <span className="font-che text-[22px] uppercase leading-none text-center px-2">
                 {mostrarCheckoutEnCarrito ? tituloCheckout : 'Tu pedido'}
               </span>
               {mostrarCheckoutEnCarrito ? (
@@ -816,10 +810,10 @@ const Menu = () => {
                 {todosLosItems.map((item) => renderItem(item))}
               </div>
 
-              <div className="shrink-0 p-4 border-t border-border bg-background">
+              <div className="shrink-0 p-4 border-t-2 border-dashed border-border bg-background">
                 <div className="flex justify-between items-center mb-3">
                   <span className="text-muted-foreground text-sm">Total a pagar</span>
-                  <span className="text-2xl font-black tracking-tight">${totalPedido}</span>
+                  <span className="font-che text-[28px] leading-none tabular-nums">${Number(totalPedido).toFixed(2).replace(/\.00$/, '')}</span>
                 </div>
                 {!restaurante?.soloCartaDigital ? (
                   <Button
@@ -1103,7 +1097,7 @@ const ProductoCard = ({ producto, onClick, fullWidth }: { producto: any, onClick
           {producto.descripcion && <p className="mt-1 text-xs text-muted-foreground line-clamp-2 leading-snug font-medium">{producto.descripcion}</p>}
         </div>
         <div className="flex items-baseline gap-1.5 mt-2">
-          <span className={`font-black text-[17px] ${tieneDescuento ? 'text-emerald-600 dark:text-emerald-400' : 'text-primary'}`}>${precioFinal.toFixed(0)}</span>
+          <span className={`font-black text-[17px] ${tieneDescuento ? 'text-emerald-600 dark:text-emerald-400' : 'text-foreground'}`}>${precioFinal.toFixed(0)}</span>
           {tieneDescuento && <span className="text-[11px] font-semibold text-muted-foreground line-through opacity-70">${precioOriginal.toFixed(0)}</span>}
         </div>
       </div>

@@ -3,6 +3,13 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Identidad de Che Milanesa (components/marca): la letra slab de los títulos, en la línea del logo. */
+.font-che {
+  font-family: 'Alfa Slab One', Georgia, serif;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+}
+
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);

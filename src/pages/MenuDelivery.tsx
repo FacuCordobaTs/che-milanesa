@@ -5,8 +5,10 @@ import { Sheet, SheetContent } from '@/components/ui/sheet'
 import { toast } from 'sonner'
 import {
     Trash2, Maximize2, Minimize2, Loader2,
-    Package, Receipt, UtensilsCrossed, Utensils, Clock, Share2, User, Plus
+    Package, UtensilsCrossed, Utensils, Clock, Share2, User, Plus, ArrowDown, Sparkles
 } from 'lucide-react'
+import { BotonPedidoChe, Damero, EstadoChe, FooterChe, HeaderChe, PanelPromos, PanelPuntos, TituloSeccionChe } from '@/components/marca/MarcaChe'
+import { proximoCanje, textoEstado } from '@/lib/marcaChe'
 import { ProductDetailDrawer } from '@/components/ProductDetailDrawer'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { MisPedidosDrawer } from '@/components/MisPedidosDrawer'
@@ -179,6 +181,9 @@ const MenuDelivery = ({ campana = null }: { campana?: CampanaPublica | null }) =
     const [drawerOpen, setDrawerOpen] = useState(false)
     const [selectedCategory, setSelectedCategory] = useState<string>('All')
     const [cartAnimation, setCartAnimation] = useState(false)
+    // Los botones del hero bajan hasta las promos de la semana y hasta el panel de puntos.
+    const promosRef = useRef<HTMLDivElement | null>(null)
+    const puntosRef = useRef<HTMLDivElement | null>(null)
 
     const [restaurante, setRestaurante] = useState<any>(null)
     const [productos, setProductos] = useState<any[]>([])
@@ -952,10 +957,11 @@ const MenuDelivery = ({ campana = null }: { campana?: CampanaPublica | null }) =
 
     if (loading) {
         return (
-            <div className="min-h-screen bg-background text-foreground flex justify-center items-center">
+            <div className="min-h-screen bg-[#111] flex justify-center items-center">
                 {themeStyles}
-                <div className="flex flex-col items-center gap-2">
-                    <span className="text-sm font-medium animate-pulse">Cargando...</span>
+                <div className="flex flex-col items-center gap-4">
+                    <img src="/logo-che.png" alt="Che Milanesa" className="w-48 h-auto animate-pulse" />
+                    <span className="text-sm font-medium text-white/60 animate-pulse">Cargando la carta…</span>
                 </div>
             </div>
         )
@@ -965,25 +971,21 @@ const MenuDelivery = ({ campana = null }: { campana?: CampanaPublica | null }) =
         return <div className="min-h-screen flex justify-center items-center">Restaurante no encontrado</div>
     }
 
+    // Promos de la semana: se dibujan como un panel propio en su lugar de la carta.
+    const categoriaPromos = categoriasOrdenadas.find(esCategoriaPromociones) ?? null
+    const productosPromos = categoriaPromos ? productosPorCategoria[categoriaPromos] ?? [] : []
+    // Puntos disponibles para canjear ahora (los canjes del carrito ya están descontados).
+    const puntosDisponibles = puntosCliente === null ? null : Math.max(0, puntosCliente - puntosEnCarrito())
+    const proximo = puntosDisponibles === null ? null : proximoCanje(puntosDisponibles, productosCanje.map((p: any) => Number(p.puntosNecesarios)))
+
+    const irA = (ref: React.RefObject<HTMLElement | null>) => {
+        const sinMovimiento = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+        ref.current?.scrollIntoView({ behavior: sinMovimiento ? 'auto' : 'smooth', block: 'start' })
+    }
+
     return (
-        <div className="min-h-screen pb-32 bg-background font-sans selection:bg-primary/20">
+        <div className="min-h-screen bg-background font-sans selection:bg-primary/20">
             {themeStyles}
-            <div className="sticky top-0 z-20 bg-background/80 backdrop-blur-md border-b border-border/50 supports-backdrop-filter:bg-background/60">
-                <div className="max-w-2xl lg:max-w-5xl xl:max-w-6xl mx-auto px-4 py-3">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                            <ThemeToggle />
-                        </div>
-                        <button
-                            onClick={() => setMisPedidosOpen(true)}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold text-primary hover:bg-primary/10 transition-colors border border-primary/20"
-                        >
-                            <Package className="w-3.5 h-3.5" />
-                            Mis Pedidos
-                        </button>
-                    </div>
-                </div>
-            </div>
 
             {restaurante?.pausadoPorSuscripcion ? (
                 // Local pausado por suscripción (Tarea 8): cerrado temporalmente, no toma pedidos.
@@ -1010,7 +1012,58 @@ const MenuDelivery = ({ campana = null }: { campana?: CampanaPublica | null }) =
                 </div>
             )}
 
-            <div className="max-w-2xl lg:max-w-5xl xl:max-w-6xl mx-auto px-5 pt-4 space-y-6">
+            <HeaderChe>
+                <span className="text-white [&_button]:bg-white/10 [&_button]:text-white [&_button:hover]:bg-white/20 [&_button:hover]:text-white">
+                    <ThemeToggle />
+                </span>
+                <button
+                    onClick={() => setMisPedidosOpen(true)}
+                    className="flex h-9 items-center gap-1.5 rounded-full border border-white/20 px-3.5 text-xs font-semibold text-white transition-colors hover:border-white/50"
+                >
+                    <Package className="w-3.5 h-3.5" />
+                    Mis pedidos
+                </button>
+            </HeaderChe>
+
+            {/* HERO: corto. Lo que importa en Che son las promos de la semana y los puntos. */}
+            <section className="bg-[#111] text-white">
+                <div className="max-w-2xl lg:max-w-5xl xl:max-w-6xl mx-auto px-5 pb-8 pt-3 lg:pb-12">
+                    <EstadoChe abierto={estadoAbierto.abierto} texto={textoEstado(horarios, estadoAbierto)} />
+                    <h1 className="font-che mt-5 text-[38px] uppercase leading-[1.02] sm:text-5xl lg:text-6xl">
+                        Pedí directo.
+                        <br />
+                        <span className="text-[#fdb700]">{restaurante?.sistemaPuntos ? 'Sumá puntos.' : 'Pedí promos.'}</span>
+                    </h1>
+                    <p className="mt-4 max-w-md text-[15px] leading-relaxed text-white/70">
+                        Promos exclusivas de la web todas las semanas
+                        {restaurante?.sistemaPuntos && ritmoPuntos ? ` y ${ritmoPuntos.charAt(0).toLowerCase()}${ritmoPuntos.slice(1)} para canjear por productos.` : '.'}
+                    </p>
+                    <div className="mt-6 flex flex-wrap items-center gap-3">
+                        {productosPromos.length > 0 && (
+                            <button
+                                type="button"
+                                onClick={() => irA(promosRef)}
+                                className="inline-flex h-12 items-center gap-2 rounded-full bg-[#fdb700] px-6 text-[15px] font-bold text-[#111] transition-transform active:scale-95"
+                            >
+                                Ver promos de la semana <ArrowDown className="size-4" />
+                            </button>
+                        )}
+                        {restaurante?.sistemaPuntos && (
+                            <button
+                                type="button"
+                                onClick={() => (puntosCliente === null ? setModalPuntosOpen(true) : irA(puntosRef))}
+                                className="inline-flex h-12 items-center gap-2 rounded-full border border-white/25 px-5 text-[15px] font-semibold text-white transition-colors hover:border-white/60"
+                            >
+                                <Sparkles className="size-4 text-[#fdb700]" />
+                                {puntosDisponibles === null ? 'Ver mis puntos' : <span className="tabular-nums">{puntosDisponibles.toLocaleString('es-AR')} pts</span>}
+                            </button>
+                        )}
+                    </div>
+                </div>
+            </section>
+            <Damero />
+
+            <div className="max-w-2xl lg:max-w-5xl xl:max-w-6xl mx-auto px-5 pt-6 space-y-8">
                 {bannerGrowth && (
                     <div className="rounded-2xl bg-gradient-to-r from-emerald-500/15 via-emerald-500/10 to-transparent border border-emerald-500/30 p-4 shadow-sm flex items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2 duration-300">
                         <div className="flex items-center gap-3 min-w-0">
@@ -1031,30 +1084,6 @@ const MenuDelivery = ({ campana = null }: { campana?: CampanaPublica | null }) =
                         </span>
                     </div>
                 )}
-                <section className="space-y-4">
-                    <div className="flex items-center justify-center gap-4">
-                        {restaurante.imagenUrl && (
-                            <img
-                                src={restaurante.imagenUrl}
-                                alt="logo"
-                                className={`max-w-48 max-h-48 h-auto w-auto rounded-md object-contain ${restaurante.imagenLightUrl ? 'hidden dark:block' : ''}`}
-                            />
-                        )}
-                        {restaurante.imagenLightUrl && (
-                            <img
-                                src={restaurante.imagenLightUrl}
-                                alt="logo"
-                                className="max-w-48 max-h-48 h-auto w-auto rounded-md object-contain block dark:hidden"
-                            />
-                        )}
-                        {/* <div>
-                            <p className="text-sm text-muted-foreground font-medium mb-0.5">Bienvenido a</p>
-                            <h1 className="text-3xl font-extrabold tracking-tight text-primary">
-                                {restaurante.nombre}
-                            </h1>
-                        </div> */}
-                    </div>
-                </section>
 
                 {productoCampana && campana ? (
                     <CampanaProductoHero campana={campana} producto={productoCampana} onClick={() => abrirDetalleProducto(productoCampana)} />
@@ -1081,63 +1110,45 @@ const MenuDelivery = ({ campana = null }: { campana?: CampanaPublica | null }) =
                     </section>
                 )}
 
-                {/* Sin caja ni borde: el bloque flota sobre el fondo. El título es el ritmo
-                    de acumulación configurado por el local y la acción vive debajo del texto. */}
-                {restaurante?.sistemaPuntos && (
-                    <section className="flex flex-col items-center gap-4 px-1 pt-1 text-center lg:max-w-2xl lg:mx-auto lg:w-full">
-                        <div className="space-y-1.5">
-                            {puntosCliente !== null && (
-                                <p className="text-sm font-bold text-foreground">
-                                    {puntosCliente - puntosEnCarrito() + puntosGanadosCarrito()} pts
-                                </p>
-                            )}
-                            <h2 className="text-xl font-extrabold tracking-tight text-foreground">
-                                Gana puntos con tu compra
-                            </h2>
-                            <p className="text-xs text-muted-foreground">
-                                {ritmoPuntos && `${ritmoPuntos}. `}
-                                {puntosCliente === null ? 'Identifícate para ver tus puntos disponibles y canjear.' : 'Puntos acumulados. Canjea por productos.'}
-                            </p>
-                        </div>
-                        {puntosCliente === null ? (
-                            <Button onClick={() => setModalPuntosOpen(true)} className="h-14 w-full rounded-2xl bg-yellow-400 text-base font-bold text-black shadow-lg shadow-yellow-400/25 hover:bg-yellow-300">
-                                Identifícate
-                            </Button>
-                        ) : (
-                            <Button disabled variant="outline" className="h-9 rounded-full px-5 text-xs font-semibold text-muted-foreground">
-                                Activo
-                            </Button>
-                        )}
-                    </section>
-                )}
 
-                {productosCanje.length > 0 && (
-                    <section className="space-y-3 pt-2">
-                        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider px-1">
-                            Productos a Canjear
-                        </h3>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 px-1">
-                            {productosCanje.map((producto: any) => (
-                                <ProductoCanjeCard
-                                    key={producto.id}
-                                    producto={producto}
-                                    onClick={() => abrirDetalleProducto({ ...producto, intentandoCanjear: true })}
-                                />
-                            ))}
-                        </div>
-                    </section>
+                {restaurante?.sistemaPuntos && selectedCategory === 'All' && (
+                    <div ref={puntosRef} className="scroll-mt-4">
+                        <PanelPuntos
+                            puntos={puntosDisponibles}
+                            cargando={loadingPuntos}
+                            ritmo={puntosGanadosCarrito() > 0 ? `Con este pedido sumás ${puntosGanadosCarrito().toLocaleString('es-AR')} pts` : ritmoPuntos}
+                            proximo={proximo}
+                            onIdentificar={() => setModalPuntosOpen(true)}
+                        >
+                            {productosCanje.length > 0 && (
+                                <>
+                                    <p className="font-che mb-3 px-1 text-lg uppercase text-white">Canjeá tus puntos</p>
+                                    <div className="-mx-4 flex snap-x scroll-px-4 gap-3 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 lg:grid-cols-3 [&::-webkit-scrollbar]:hidden">
+                                        {productosCanje.map((producto: any) => (
+                                            <div key={producto.id} className="w-[72%] shrink-0 snap-start sm:w-auto">
+                                                <ProductoCanjeCard
+                                                    producto={producto}
+                                                    onClick={() => abrirDetalleProducto({ ...producto, intentandoCanjear: true })}
+                                                />
+                                            </div>
+                                        ))}
+                                    </div>
+                                </>
+                            )}
+                        </PanelPuntos>
+                    </div>
                 )}
 
                 {categorias.length > 1 && (
                     <section className="space-y-3 pt-2">
-                        <h2 className="text-lg font-bold text-foreground px-1">Categorías</h2>
+                        <TituloSeccionChe titulo="La carta" />
                         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 px-1">
                             {categorias.map((category) => (
                                 <Button
                                     key={category}
                                     onClick={() => setSelectedCategory(category || 'All')}
                                     variant={selectedCategory === category ? "default" : "secondary"}
-                                    className={`rounded-lg px-5 h-10 text-xs font-medium transition-all ${selectedCategory === category
+                                    className={`rounded-full px-5 h-10 text-xs font-semibold transition-all ${selectedCategory === category
                                         ? "shadow-md"
                                         : "bg-secondary/50 hover:bg-secondary border border-transparent"
                                         }`}
@@ -1149,25 +1160,39 @@ const MenuDelivery = ({ campana = null }: { campana?: CampanaPublica | null }) =
                     </section>
                 )}
 
-                <section className="space-y-8 min-h-[50vh]">
+                <section className="space-y-10 min-h-[50vh]">
                     {selectedCategory === 'All' ? (
                         categoriasOrdenadas.length > 0 ? (
                             categoriasOrdenadas.map((categoriaNombre) => {
                                 const productosDeCategoria = productosPorCategoria[categoriaNombre]
                                 if (!productosDeCategoria || productosDeCategoria.length === 0) return null
+                                if (esCategoriaPromociones(categoriaNombre)) return (
+                                    <div key="promos" ref={promosRef} className="scroll-mt-4">
+                                        <PanelPromos titulo={categoriaPromos ?? 'Promociones de la semana'} cantidad={productosPromos.length}>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
+                                                {productosPromos.map((producto: any) => (
+                                                    <ProductoCard
+                                                        key={producto.id}
+                                                        producto={producto}
+                                                        onClick={() => abrirDetalleProducto(producto)}
+                                                        esPromocion
+                                                        fullWidth
+                                                    />
+                                                ))}
+                                            </div>
+                                        </PanelPromos>
+                                    </div>
+                                )
 
                                 return (
                                     <div key={categoriaNombre} className="space-y-4">
-                                        <h3 className={`uppercase tracking-wider px-1 ${esCategoriaPromociones(categoriaNombre) ? 'text-xl font-extrabold text-yellow-500 dark:text-yellow-400' : 'text-sm font-semibold text-muted-foreground'}`}>
-                                            {categoriaNombre}
-                                        </h3>
+                                        <TituloSeccionChe titulo={categoriaNombre} />
                                         <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 px-1">
                                             {productosDeCategoria.map((producto: any) => (
                                                 <ProductoCard
                                                     key={producto.id}
                                                     producto={producto}
                                                     onClick={() => abrirDetalleProducto(producto)}
-                                                    esPromocion={esCategoriaPromociones(categoriaNombre)}
                                                     fullWidth
                                                 />
                                             ))}
@@ -1178,19 +1203,32 @@ const MenuDelivery = ({ campana = null }: { campana?: CampanaPublica | null }) =
                         ) : (
                             <EmptyState />
                         )
+                    ) : esCategoriaPromociones(selectedCategory) ? (
+                        <div key="promos" ref={promosRef} className="scroll-mt-4">
+                            <PanelPromos titulo={categoriaPromos ?? 'Promociones de la semana'} cantidad={productosPromos.length}>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
+                                    {productosPromos.map((producto: any) => (
+                                        <ProductoCard
+                                            key={producto.id}
+                                            producto={producto}
+                                            onClick={() => abrirDetalleProducto(producto)}
+                                            esPromocion
+                                            fullWidth
+                                        />
+                                    ))}
+                                </div>
+                            </PanelPromos>
+                        </div>
                     ) : (
                         productosFiltrados.length > 0 ? (
                             <div className="space-y-4">
-                                <h3 className={`uppercase tracking-wider px-1 ${esCategoriaPromociones(selectedCategory) ? 'text-xl font-extrabold text-yellow-500 dark:text-yellow-400' : 'text-sm font-semibold text-muted-foreground'}`}>
-                                    {selectedCategory}
-                                </h3>
+                                <TituloSeccionChe titulo={selectedCategory} />
                                 <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 px-1">
                                     {productosFiltrados.map((producto: any) => (
                                         <ProductoCard
                                             key={producto.id}
                                             producto={producto}
                                             onClick={() => abrirDetalleProducto(producto)}
-                                            esPromocion={esCategoriaPromociones(selectedCategory)}
                                             fullWidth
                                         />
                                     ))}
@@ -1203,32 +1241,20 @@ const MenuDelivery = ({ campana = null }: { campana?: CampanaPublica | null }) =
                 </section>
             </div>
 
-            {/* FOOTER / VER PEDIDO */}
-            <div className={`fixed bottom-6 left-0 right-0 flex justify-center z-40 transition-all duration-500 ${cartItems.length > 0 ? 'translate-y-0 opacity-100' : 'translate-y-20 opacity-0'}`}>
-                <button
-                    onClick={abrirCarrito}
-                    className={`
-            group relative flex items-center gap-4 pl-5 pr-6 py-3.5 rounded-full
-            shadow-2xl hover:scale-[1.02] active:scale-95 transition-all duration-300
-            bg-zinc-900 text-white shadow-zinc-900/20
-            dark:bg-white/10 dark:text-white dark:backdrop-blur-xl
-            dark:border dark:border-white/10 dark:shadow-[0_0_20px_rgba(255,255,255,0.05)]
-            ${cartAnimation ? 'scale-105' : 'scale-100'}
-          `}
-                >
-                    <div className={`absolute -top-2 -right-1 bg-red-500 text-white text-[10px] font-bold h-5 min-w-[20px] px-1 flex items-center justify-center rounded-full border-2 border-background z-10 transition-transform duration-300 ${cartAnimation ? 'scale-125' : 'scale-100'}`}>
-                        {cartItems.length}
-                    </div>
-                    <div className="flex items-center gap-2.5">
-                        <Receipt className="w-5 h-5 text-current opacity-90" />
-                        <span className="font-semibold text-sm tracking-wide">Ver Pedido</span>
-                    </div>
-                    <div className="h-4 w-px bg-current opacity-20"></div>
-                    <span className="font-bold text-base font-mono">
-                        ${totalPedido}
-                    </span>
-                </button>
-            </div>
+            <FooterChe
+                horarios={horarios}
+                direccion={restaurante?.direccionTexto ?? restaurante?.direccion}
+                onPedir={() => (cartItems.length > 0 ? abrirCarrito() : window.scrollTo({ top: 0, behavior: 'smooth' }))}
+            />
+
+            {/* VER PEDIDO */}
+            <BotonPedidoChe
+                cantidad={cartItems.length}
+                total={Number(totalPedido).toFixed(2).replace(/\.00$/, '')}
+                visible={cartItems.length > 0}
+                onClick={abrirCarrito}
+                pulso={cartAnimation}
+            />
 
             {/* CARRITO OVERLAY */}
             {carritoAbierto && (
@@ -1257,12 +1283,12 @@ const MenuDelivery = ({ campana = null }: { campana?: CampanaPublica | null }) =
 
                     <div className="shrink-0 sticky top-0 z-10 bg-background pt-2">
                         <div className="w-full flex justify-center pt-3 pb-1">
-                            <span className="w-12 h-1.5 rounded-full bg-muted-foreground/30" />
+                            <span className="w-12 h-1.5 rounded-full bg-primary" />
                         </div>
                         <div className="flex items-center justify-between px-4 pb-3 pt-2">
                             <div className="w-8 h-8" />
-                            <span className="text-xl font-extrabold">
-                                {mostrarCheckoutEnCarrito ? tituloCheckout : 'Tu Pedido'}
+                            <span className="font-che text-[22px] uppercase leading-none text-center px-2">
+                                {mostrarCheckoutEnCarrito ? tituloCheckout : 'Tu pedido'}
                             </span>
                             {mostrarCheckoutEnCarrito ? (
                                 <button
@@ -1373,10 +1399,10 @@ const MenuDelivery = ({ campana = null }: { campana?: CampanaPublica | null }) =
                                     )
                                 })}
                             </div>
-                            <div className="shrink-0 p-4 border-t border-border bg-background">
+                            <div className="shrink-0 p-4 border-t-2 border-dashed border-border bg-background">
                                 <div className="flex justify-between items-center mb-3">
                                     <span className="text-muted-foreground text-sm">Total a pagar</span>
-                                    <span className="text-2xl font-black tracking-tight">${totalPedido}</span>
+                                    <span className="font-che text-[28px] leading-none tabular-nums">${Number(totalPedido).toFixed(2).replace(/\.00$/, '')}</span>
                                 </div>
                                 <Button
                                     className="w-full h-12 rounded-xl font-bold text-base shadow-md"
@@ -1586,7 +1612,7 @@ const ProductoCard = ({ producto, onClick, fullWidth, esPromocion = false }: { p
                 </div>
 
                 <div className="mt-4 flex items-end gap-1.5">
-                    <span className={`font-black text-[18px] ${esPromocion ? 'text-yellow-500 dark:text-yellow-400' : tieneDescuento ? 'text-emerald-600 dark:text-emerald-400' : 'text-primary'}`}>
+                    <span className={`font-black text-[18px] ${esPromocion ? 'text-[#d9480f] dark:text-[#fdb700]' : tieneDescuento ? 'text-emerald-600 dark:text-emerald-400' : 'text-foreground'}`}>
                         ${precioFinal.toFixed(0)}
                     </span>
                     {tieneDescuento && (
@@ -1641,7 +1667,7 @@ const ProductoCard = ({ producto, onClick, fullWidth, esPromocion = false }: { p
                 </div>
 
                 <div className="flex items-baseline gap-1.5 mt-2">
-                    <span className={`font-black text-[17px] ${esPromocion ? 'text-yellow-500 dark:text-yellow-400' : tieneDescuento ? 'text-emerald-600 dark:text-emerald-400' : 'text-primary'}`}>
+                    <span className={`font-black text-[17px] ${esPromocion ? 'text-[#d9480f] dark:text-[#fdb700]' : tieneDescuento ? 'text-emerald-600 dark:text-emerald-400' : 'text-foreground'}`}>
                         ${precioFinal.toFixed(0)}
                     </span>
                     {tieneDescuento && (
@@ -1665,9 +1691,9 @@ export default MenuDelivery
 
 const ProductoCanjeCard = ({ producto, onClick }: { producto: any, onClick: () => void }) => {
     const puntos = (
-        <span className="font-black text-primary">
-            <span className="text-[17px]">{producto.puntosNecesarios}</span>
-            <span className="ml-1 text-[11px] font-bold uppercase">pts</span>
+        <span className="inline-flex items-baseline rounded-full bg-[#fdb700] px-2.5 py-0.5 font-black text-[#111]">
+            <span className="text-[15px] tabular-nums">{producto.puntosNecesarios}</span>
+            <span className="ml-1 text-[10px] font-bold uppercase">pts</span>
         </span>
     )
 
