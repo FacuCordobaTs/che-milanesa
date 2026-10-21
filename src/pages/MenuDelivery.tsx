@@ -1116,7 +1116,7 @@ const MenuDelivery = ({ campana = null }: { campana?: CampanaPublica | null }) =
                         <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider px-1">
                             Productos a Canjear
                         </h3>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 px-1">
+                        <div className="grid grid-cols-1 gap-4 px-1">
                             {productosCanje.map((producto: any) => (
                                 <ProductoCanjeCard
                                     key={producto.id}
@@ -1663,26 +1663,65 @@ const ProductoCard = ({ producto, onClick, fullWidth, esPromocion = false }: { p
 
 export default MenuDelivery
 
-const ProductoCanjeCard = ({ producto, onClick }: { producto: any, onClick: () => void }) => (
-    <div
-        className="group relative w-full h-24 rounded-2xl overflow-hidden cursor-pointer shadow-sm border border-primary/20 hover:border-primary/50 bg-card hover:bg-secondary/50 transition-all duration-300 flex items-center p-3 gap-4"
-        onClick={onClick}
-    >
-        <div className="w-16 h-16 shrink-0 rounded-xl overflow-hidden bg-zinc-900 border border-border/50">
-            {producto.imagenUrl ? (
-                <img src={producto.imagenUrl} alt={producto.nombre} className="w-full h-full object-cover" />
-            ) : (
-                <div className="w-full h-full flex items-center justify-center bg-linear-to-br from-zinc-800 to-zinc-900"><Utensils className="w-6 h-6 text-primary" /></div>
-            )}
+const ProductoCanjeCard = ({ producto, onClick }: { producto: any, onClick: () => void }) => {
+    const puntos = (
+        <span className="font-black text-primary">
+            <span className="text-[17px]">{producto.puntosNecesarios}</span>
+            <span className="ml-1 text-[11px] font-bold uppercase">pts</span>
+        </span>
+    )
+
+    if (!producto.imagenUrl) {
+        return (
+            <div
+                className="group relative flex flex-col justify-between w-full min-h-[140px] p-4.5 rounded-[24px] bg-card border border-border/50 shadow-sm hover:shadow-md transition-all duration-300 hover:border-primary/30 hover:bg-accent/20 hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+                onClick={onClick}
+            >
+                <div className="flex-1">
+                    <h3 className="font-bold text-[15px] leading-snug text-foreground line-clamp-3 mb-2">
+                        {producto.nombre}
+                    </h3>
+                    {producto.descripcion && (
+                        <p className="text-xs text-muted-foreground line-clamp-3 leading-relaxed font-medium">
+                            {producto.descripcion}
+                        </p>
+                    )}
+                </div>
+                <div className="mt-4 flex items-end gap-1.5">{puntos}</div>
+            </div>
+        )
+    }
+
+    return (
+        <div
+            className="group relative flex flex-col w-full min-h-[260px] rounded-[24px] bg-card border border-border/50 shadow-md hover:shadow-xl transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] overflow-hidden cursor-pointer"
+            onClick={onClick}
+        >
+            <div className="w-full aspect-[3/2] shrink-0 bg-zinc-900 relative">
+                <img
+                    src={producto.imagenUrl}
+                    alt={producto.nombre}
+                    className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
+                />
+                <div className="absolute top-2.5 left-2.5 z-10">
+                    <span className="bg-yellow-400 text-black text-[10px] font-extrabold px-2 py-0.5 rounded-full shadow-lg uppercase tracking-wide">
+                        Canje
+                    </span>
+                </div>
+            </div>
+            <div className="p-3.5 flex flex-col flex-1 bg-card">
+                <div className="flex-1">
+                    <h3 className="font-bold text-[14px] line-clamp-2 text-foreground leading-tight">
+                        {producto.nombre}
+                    </h3>
+                    {producto.descripcion && (
+                        <p className="mt-1 text-xs text-muted-foreground line-clamp-2 leading-snug font-medium">
+                            {producto.descripcion}
+                        </p>
+                    )}
+                </div>
+                <div className="flex items-baseline gap-1.5 mt-2">{puntos}</div>
+            </div>
         </div>
-        <div className="flex-1 min-w-0 flex flex-col justify-center">
-            <h3 className="font-semibold text-sm text-foreground truncate">{producto.nombre}</h3>
-            <p className="text-xs text-muted-foreground line-clamp-1">{producto.descripcion || 'Canje de puntos'}</p>
-        </div>
-        <div className="flex flex-col items-end justify-center px-2">
-            <span className="text-[10px] font-bold text-primary mb-0.5">COSTO</span>
-            <span className="font-extrabold text-primary text-lg leading-none">{producto.puntosNecesarios}</span>
-            <span className="text-[10px] font-medium text-primary mt-0.5">pts</span>
-        </div>
-    </div>
-)
+    )
+}
