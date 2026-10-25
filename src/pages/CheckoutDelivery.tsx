@@ -81,7 +81,8 @@ const CheckoutDelivery = () => {
 
     const [codigoInput, setCodigoInput] = useState('')
     const [codigoDescuentoId, setCodigoDescuentoId] = useState<number | null>(null)
-    const [montoDescuento, setMontoDescuento] = useState(0)
+    const [montoDescuentoGuardado, setMontoDescuento] = useState(0)
+    const [cuponEnvioGratis, setCuponEnvioGratis] = useState(false)
     const [validandoCodigo, setValidandoCodigo] = useState(false)
     const [codigoError, setCodigoError] = useState<string | null>(null)
     const [tipoDomicilio, setTipoDomicilio] = useState<'casa' | 'departamento' | null>(null)
@@ -178,6 +179,16 @@ const CheckoutDelivery = () => {
     const globalDeliveryFee = cart?.deliveryFee ? parseFloat(cart.deliveryFee) : 0
     const deliveryFee = zonaDeliveryFee !== null ? zonaDeliveryFee : globalDeliveryFee
     const itemsTotal = cart?.items?.reduce((sum: number, item: any) => sum + (parseFloat(item.precio) * item.cantidad), 0) || 0
+    const montoDescuento = codigoDescuentoId && cuponEnvioGratis
+        ? (tipoPedido === 'delivery' ? deliveryFee : 0) : montoDescuentoGuardado
+    const cambiarTipoPedido = (nuevoTipo: 'delivery' | 'takeaway') => {
+      setTipoPedido(nuevoTipo)
+      if (cuponEnvioGratis && nuevoTipo !== 'delivery') {
+        setCodigoDescuentoId(null)
+        setMontoDescuento(0)
+        setCuponEnvioGratis(false)
+      }
+    }
     const subtotalConEnvio = tipoPedido === 'delivery' ? itemsTotal + deliveryFee : itemsTotal
     const total = Math.max(0, subtotalConEnvio - montoDescuento)
 
@@ -194,13 +205,16 @@ const CheckoutDelivery = () => {
                     restauranteId: cart.restauranteId,
                     codigo: codigoInput.trim().toUpperCase(),
                     totalCarrito: subtotalConEnvio,
+                    tipoPedido,
+                    costoEnvio: tipoPedido === 'delivery' ? deliveryFee : 0,
                 }),
             })
             const data = await res.json()
             if (data.success && data.data) {
+                setCuponEnvioGratis(data.data.tipo === 'envio_gratis')
                 setCodigoDescuentoId(data.data.codigoDescuentoId)
                 setMontoDescuento(parseFloat(data.data.montoDescuento))
-                toast.success(`Código aplicado: -$${parseFloat(data.data.montoDescuento).toFixed(0)}`)
+                toast.success(data.data.tipo === 'envio_gratis' ? 'Envío gratis aplicado' : `Código aplicado: -$${parseFloat(data.data.montoDescuento).toFixed(0)}`)
             } else {
                 setCodigoError(data.message || 'Código no válido')
                 setCodigoDescuentoId(null)
@@ -450,13 +464,13 @@ const CheckoutDelivery = () => {
                             )
                         }
                         return (
-                            <RadioGroup defaultValue="delivery" value={tipoPedido} onValueChange={(v: any) => setTipoPedido(v)} className="grid grid-cols-2 gap-4">
-                                <div className={`relative flex flex-col items-center justify-center p-4 border-2 rounded-2xl transition-colors ${!delEn ? 'opacity-40 cursor-not-allowed border-border' : `cursor-pointer hover:bg-secondary/50 ${tipoPedido === 'delivery' ? 'border-primary bg-primary/5' : 'border-border'}`}`} onClick={() => delEn && setTipoPedido('delivery')}>
+                            <RadioGroup defaultValue="delivery" value={tipoPedido} onValueChange={(v: any) => cambiarTipoPedido(v)} className="grid grid-cols-2 gap-4">
+                                <div className={`relative flex flex-col items-center justify-center p-4 border-2 rounded-2xl transition-colors ${!delEn ? 'opacity-40 cursor-not-allowed border-border' : `cursor-pointer hover:bg-secondary/50 ${tipoPedido === 'delivery' ? 'border-primary bg-primary/5' : 'border-border'}`}`} onClick={() => delEn && cambiarTipoPedido('delivery')}>
                                     <MapPin className={`w-8 h-8 mb-2 ${tipoPedido === 'delivery' ? 'text-primary' : 'text-muted-foreground'}`} />
                                     <Label className={`font-semibold mb-1 ${delEn ? 'cursor-pointer' : 'cursor-not-allowed'}`}>Delivery</Label>
                                     <span className="text-xs text-muted-foreground text-center">{delEn ? 'Te lo llevamos' : 'No disponible'}</span>
                                 </div>
-                                <div className={`relative flex flex-col items-center justify-center p-4 border-2 rounded-2xl transition-colors ${!tkEn ? 'opacity-40 cursor-not-allowed border-border' : `cursor-pointer hover:bg-secondary/50 ${tipoPedido === 'takeaway' ? 'border-primary bg-primary/5' : 'border-border'}`}`} onClick={() => tkEn && setTipoPedido('takeaway')}>
+                                <div className={`relative flex flex-col items-center justify-center p-4 border-2 rounded-2xl transition-colors ${!tkEn ? 'opacity-40 cursor-not-allowed border-border' : `cursor-pointer hover:bg-secondary/50 ${tipoPedido === 'takeaway' ? 'border-primary bg-primary/5' : 'border-border'}`}`} onClick={() => tkEn && cambiarTipoPedido('takeaway')}>
                                     <Store className={`w-8 h-8 mb-2 ${tipoPedido === 'takeaway' ? 'text-primary' : 'text-muted-foreground'}`} />
                                     <Label className={`font-semibold mb-1 ${tkEn ? 'cursor-pointer' : 'cursor-not-allowed'}`}>Take Away</Label>
                                     <span className="text-xs text-muted-foreground text-center">{tkEn ? 'Lo pasas a buscar' : 'No disponible'}</span>
