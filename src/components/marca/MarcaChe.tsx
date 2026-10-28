@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { ArrowRight, ArrowUp, Instagram, Loader2, MapPin, Sparkles } from 'lucide-react'
-import { DIAS, INSTAGRAM_URL, SEMANA, turnosDelDia, type Turno } from '@/lib/marcaChe'
+import { DIAS, INSTAGRAM_URL, PIRU_URL, SEMANA, turnosDelDia, type Turno } from '@/lib/marcaChe'
 
 // Piezas de la identidad de Che Milanesa que comparten la carta (MenuDelivery) y el pedido en grupo
 // (Menu). Simple, con lo que ya usa la marca en sus redes: el amarillo #fdb700 sobre negro, la letra
@@ -217,7 +217,17 @@ export function FooterChe({ horarios, direccion, onPedir }: { horarios: Turno[];
                 </div>
                 <div className="mx-auto mt-10 flex max-w-2xl flex-wrap justify-between gap-2 px-5 text-xs text-white/40 lg:max-w-5xl xl:max-w-6xl">
                     <span>© {new Date().getFullYear()} Che Milanesa · Santa Fe</span>
-                    <span>Pedidos online con Piru</span>
+                    <span>
+                        Pedidos online con{' '}
+                        <a
+                            href={PIRU_URL}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="underline decoration-white/25 underline-offset-4 transition-colors hover:text-[#fdb700] hover:decoration-[#fdb700]"
+                        >
+                            Piru
+                        </a>
+                    </span>
                 </div>
             </div>
         </footer>

@@ -3,6 +3,7 @@
 export type Turno = { diaSemana: number; horaApertura: string; horaCierre: string }
 
 export const INSTAGRAM_URL = 'https://www.instagram.com/chemilanesa/'
+export const PIRU_URL = 'https://info.piru.app'
 export const DIAS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
 export const SEMANA = [1, 2, 3, 4, 5, 6, 0]
 
