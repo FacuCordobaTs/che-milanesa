@@ -4,7 +4,7 @@ import MenuDelivery, { type CampanaPublica } from './MenuDelivery'
 import { contextoParaResolverMarketing, guardarContextoTracking, limpiarContextoTracking } from '@/lib/tracking'
 const API_URL = (import.meta.env.VITE_API_URL || 'https://api.piru.app/api').replace(/\/$/, ''), USERNAME = 'chemilanesa'
 type Destino = { tipo: 'tienda' } | { tipo: 'producto'; productoId: number } | { tipo: 'carrito'; carritoRep: string }
-type Beneficio = { codigoDescuentoId: number; codigo: string }
+type Beneficio = { codigoDescuentoId?: number; codigo?: string; puntos?: { cantidad: number; montoMinimo: number } }
 type Respuesta = { data?: { encontrada?: boolean; destino?: Destino; contexto?: { campaniaSlug?: string; campanaId?: number }; beneficio?: Beneficio; campana?: CampanaPublica } }
 const urlDestino = (destino?: Destino) => destino?.tipo === 'producto' ? `/?producto=${destino.productoId}` : destino?.tipo === 'carrito' ? `/?rep=${encodeURIComponent(destino.carritoRep)}` : '/'
 async function resolverLink(endpoint: 'campanas' | 'recetas', identificador: string, signal: AbortSignal): Promise<Respuesta | null> { try { const res = await fetch(`${API_URL}/public/marketing/${endpoint}/${USERNAME}/${encodeURIComponent(identificador)}?${new URLSearchParams(contextoParaResolverMarketing(USERNAME))}`, { signal }); return res.ok ? await res.json() : null } catch { return null } }
@@ -34,6 +34,9 @@ export function CampanaLinkResolver() {
                 productoId: destino?.tipo === 'producto' ? destino.productoId : (base?.productoId ?? null),
                 carritoRep: destino?.tipo === 'carrito' ? destino.carritoRep : (base?.carritoRep ?? null),
                 descuentoPorcentaje: base?.descuentoPorcentaje ?? 0,
+                beneficioTipo: base?.beneficioTipo,
+                puntosBeneficio: base?.puntosBeneficio ?? datos.beneficio?.puntos?.cantidad ?? 0,
+                puntosMontoMinimo: base?.puntosMontoMinimo ?? datos.beneficio?.puntos?.montoMinimo ?? 0,
                 limiteUsos: base?.limiteUsos ?? null,
                 usosActuales: base?.usosActuales ?? 0,
                 usosRestantes: base?.usosRestantes ?? null,

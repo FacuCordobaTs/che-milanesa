@@ -28,6 +28,38 @@ export function EstadoChe({ abierto, texto }: { abierto: boolean; texto: string 
     )
 }
 
+/** Banner de puntos extra: negro del logo, amarillo Che y la letra slab. No es un descuento. */
+export function BannerPuntosChe({ puntos, montoMinimo }: { puntos: number; montoMinimo?: number }) {
+    const cantidad = Math.max(0, Math.trunc(Number(puntos) || 0))
+    const desde = montoMinimo && montoMinimo > 0
+        ? ` desde $${Math.round(montoMinimo).toLocaleString('es-AR')}`
+        : ''
+    return (
+        <section
+            aria-label="Puntos extra"
+            className="relative overflow-hidden rounded-2xl bg-[#111] p-4 text-white shadow-[0_18px_40px_-24px_rgba(17,17,17,0.9)] ring-1 ring-[#fdb700]/45"
+        >
+            <span aria-hidden className="pointer-events-none absolute -right-8 -top-10 size-28 rounded-full bg-[#fdb700]/15 blur-2xl" />
+            <div className="relative flex items-center gap-3">
+                <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-[#fdb700] text-[#111] shadow-sm">
+                    <Sparkles className="size-5" />
+                </span>
+                <div className="min-w-0 flex-1">
+                    <p className="font-che text-[17px] uppercase leading-none tracking-wide text-[#fdb700]">
+                        Sumás {cantidad.toLocaleString('es-AR')} puntos
+                    </p>
+                    <p className="mt-1 text-xs leading-snug text-white/70">
+                        Con tu pedido{desde}. Se acreditan cuando se cobra.
+                    </p>
+                </div>
+                <span className="hidden shrink-0 rounded-full border border-[#fdb700]/40 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-[#fdb700] sm:block">
+                    Puntos Che
+                </span>
+            </div>
+        </section>
+    )
+}
+
 /** La franja a cuadros amarilla y negra de las historias de Che. */
 export const Damero = () => (
     <div
