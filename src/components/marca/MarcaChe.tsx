@@ -49,7 +49,7 @@ export function BannerPuntosChe({ puntos, montoMinimo }: { puntos: number; monto
                         Sumás {cantidad.toLocaleString('es-AR')} puntos
                     </p>
                     <p className="mt-1 text-xs leading-snug text-white/70">
-                        Con tu pedido{desde}. Se acreditan cuando se cobra.
+                        Con tu pedido{desde}. Se acreditan cuando se despacha.
                     </p>
                 </div>
                 <span className="hidden shrink-0 rounded-full border border-[#fdb700]/40 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-[#fdb700] sm:block">

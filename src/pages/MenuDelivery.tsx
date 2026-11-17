@@ -455,14 +455,14 @@ const MenuDelivery = ({ campana = null }: { campana?: CampanaPublica | null }) =
                     codigoPromocional: data.descuento?.codigoCupon ?? undefined,
                 })
 
-                // Bonus de puntos del link: no es descuento, se acredita cuando se cobra.
+                // Bonus de puntos del link: no es descuento, se acredita cuando se despacha.
                 const puntosExtra = Number(data.puntos?.cantidad || 0)
                 if (data.puntos?.activo && puntosExtra > 0) {
                     const minimo = Number(data.puntos.montoMinimo || 0)
                     setBannerPuntos({ puntos: puntosExtra, montoMinimo: minimo })
                     setBannerGrowth(null)
                     setDescuentoGrowthCodigo(null)
-                    toast.success(`Sumás ${puntosExtra.toLocaleString('es-AR')} puntos extra al cobrar 🧀`)
+                    toast.success(`Sumás ${puntosExtra.toLocaleString('es-AR')} puntos extra al despachar 🧀`)
                 } else {
                     setBannerPuntos(null)
                 }
